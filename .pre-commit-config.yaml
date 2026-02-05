@@ -1,0 +1,19 @@
+exclude: '^workflows/'
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: "v0.4.3"
+    hooks:
+      # Run the linter and absolufy-imports.
+      - id: ruff
+        args: [--fix, --extend-select, E501, --line-length, "120"]
+      # Run the formatter.
+      - id: ruff-format
+        args: [--line-length, "120"]
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.1.0
+    hooks:
+    - id: codespell
+      files: ^.*\.(py|md|rst|ipynb)$
+      args: ["-w"]

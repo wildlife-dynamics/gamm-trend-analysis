@@ -1,0 +1,39 @@
+id: deforestation
+requirements:
+  - name: ecoscope-workflows-core
+    version: "*"
+    channel: https://repo.prefix.dev/ecoscope-workflows/
+
+
+workflow:
+  - name: Set Workflow Details
+    id: workflow_details
+    task: set_workflow_details
+  - name: Time Range
+    id: time_range
+    task: set_time_range
+    partial:
+      time_format: "%d %b %Y %H:%M:%S %Z"
+  - name: Set Groupers
+    id: groupers
+    task: set_groupers
+  - name: Calculate Task
+    id: calculator
+    task: apply_arithmetic_operation
+  - name: Create Single Value Widgets
+    id: sv_widgets
+    task: create_single_value_widget_single_view
+    partial:
+      title: "Sum"
+      decimal_places: 0
+      data: ${{ workflow.calculator.return }}
+  - name: Create An Example Dashboard
+    id: template_dashboard
+    task: gather_dashboard
+    partial:
+      details: ${{ workflow.workflow_details.return}}
+      widgets:
+        - ${{ workflow.sv_widgets.return }}
+      time_range: ${{ workflow.time_range.return}}
+      groupers: ${{ workflow.groupers.return }}
+

@@ -1,0 +1,12 @@
+workflow_details:
+  name: "Example Workflow"
+  description: "An example workflow for testing purposes."
+time_range:
+  since: "2015-01-01T00:00:00Z"
+  until: "2015-02-28T23:59:59Z"
+groupers:
+  groupers: []
+calculator:
+  a: 1
+  b: 1
+  operation: "add"

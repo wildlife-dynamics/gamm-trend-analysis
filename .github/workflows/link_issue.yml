@@ -1,0 +1,12 @@
+
+name: Check Linked Issue
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+
+jobs:
+  check-linked-issue:
+    uses: wildlife-dynamics/compose/.github/workflows/check-linked-issue.yaml@main
+    with:
+      pr_body: ${{ github.event.pull_request.body }}

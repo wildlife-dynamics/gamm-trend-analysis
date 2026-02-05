@@ -1,0 +1,53 @@
+all-grouper:
+  name: All Grouper
+  description: A demonstration of a workflow with no grouping.
+  params:
+    workflow_details:
+      name: "Example Workflow"
+      description: "An example workflow for testing purposes."
+    time_range:
+      since: "2015-01-01T00:00:00Z"
+      until: "2015-02-28T23:59:59Z"
+    groupers:
+      groupers: []
+    calculator:
+      a: 1
+      b: 1
+      operation: "add"
+
+month-grouper:
+  name: Month Grouper
+  description: A demonstration of a workflow with monthly grouping.
+  params:
+    workflow_details:
+      name: "Example Workflow"
+      description: "An example workflow for testing purposes."
+    time_range:
+      since: "2015-01-01T00:00:00Z"
+      until: "2015-02-28T23:59:59Z"
+    groupers:
+      groupers:
+        - "%B"
+    calculator:
+      a: 1
+      b: 1
+      operation: "add"
+
+
+value-grouper:
+  name: Value Grouper
+  description: A demonstration of a workflow grouped by a value.
+  params:
+    workflow_details:
+      name: "Example Workflow"
+      description: "An example workflow for testing purposes."
+    groupers:
+      groupers:
+        - index_name: "test"
+    time_range:
+      since: "2015-01-01T00:00:00Z"
+      until: "2015-02-28T23:59:59Z"
+    calculator:
+      a: 1
+      b: 1
+      operation: "add"
