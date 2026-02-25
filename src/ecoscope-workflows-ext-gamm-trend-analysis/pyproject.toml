@@ -68,6 +68,8 @@ tomli-w = "*"
 ecoscope-workflows-core = ">=0.18.0"
 
 # additional dependencies added by this extension
+ecoscope = "*"
+geopandas = "*"
 
 
 [tool.mypy]

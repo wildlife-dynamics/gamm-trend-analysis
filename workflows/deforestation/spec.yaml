@@ -3,6 +3,9 @@ requirements:
   - name: ecoscope-workflows-core
     version: "*"
     channel: https://repo.prefix.dev/ecoscope-workflows/
+  - name: ecoscope-workflows-ext-gamm-trend-analysis
+    version: "*"
+    channel: file:///tmp/ecoscope-workflows-custom/release/artifacts/
 
 
 workflow:
@@ -17,23 +20,56 @@ workflow:
   - name: Set Groupers
     id: groupers
     task: set_groupers
-  - name: Calculate Task
-    id: calculator
-    task: apply_arithmetic_operation
-  - name: Create Single Value Widgets
-    id: sv_widgets
-    task: create_single_value_widget_single_view
+  - name: Get Time Series Data
+    id: time_series_data
+    task: get_observations
     partial:
-      title: "Sum"
-      decimal_places: 0
-      data: ${{ workflow.calculator.return }}
-  - name: Create An Example Dashboard
-    id: template_dashboard
+      time_range: ${{ workflow.time_range.return }}
+  - name: Fit GAMM Model
+    id: gamm_model
+    task: fit_gamm_model
+    partial:
+      dataframe: ${{ workflow.time_series_data.return }}
+      time_column: "recorded_at"
+      value_column: "value"
+      optimize_alpha: true
+      metric: "aic"
+  - name: Generate Trend Predictions
+    id: trend_predictions
+    task: predict_gamm_trends
+    partial:
+      model_params: ${{ workflow.gamm_model.return }}
+      include_ci: true
+  - name: Create Trend Chart
+    id: trend_chart
+    task: draw_line_chart
+    partial:
+      dataframe: ${{ workflow.trend_predictions.return }}
+      x_column: "time"
+      y_column: "predicted"
+      line_kwargs:
+        shape: "spline"
+      layout_kwargs:
+        xaxis:
+          title: "Time"
+        yaxis:
+          title: "Trend"
+        hovermode: "closest"
+  - name: Create Trend Chart Widget
+    id: trend_chart_widget
+    task: create_plot_widget_single_view
+    partial:
+      title: "GAMM Trend Analysis"
+    map:
+      argnames: [view, data]
+      argvalues: ${{ workflow.trend_chart.return }}
+  - name: Create GAMM Dashboard
+    id: gamm_dashboard
     task: gather_dashboard
     partial:
       details: ${{ workflow.workflow_details.return}}
       widgets:
-        - ${{ workflow.sv_widgets.return }}
+        - ${{ workflow.trend_chart_widget.return }}
       time_range: ${{ workflow.time_range.return}}
       groupers: ${{ workflow.groupers.return }}
 

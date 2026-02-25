@@ -25,6 +25,8 @@ requirements:
   run:
     - python
     - ecoscope-workflows-core
+    - ecoscope
+    - geopandas
 
 about:
   license: BSD-3-Clause
