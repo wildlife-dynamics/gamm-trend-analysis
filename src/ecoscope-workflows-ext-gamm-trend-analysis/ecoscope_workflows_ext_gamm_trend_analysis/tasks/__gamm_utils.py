@@ -1,4 +1,5 @@
 """Utility functions for GAMM trend analysis tasks."""
+
 import numpy as np
 import pandas as pd
 from typing import Tuple
@@ -12,7 +13,7 @@ def prepare_time_series_data(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract time and value arrays from DataFrame for GAM fitting.
-    
+
     Parameters
     ----------
     df : pd.DataFrame
@@ -21,7 +22,7 @@ def prepare_time_series_data(
         Column name containing time/date values
     value_column : str
         Column name containing values to analyze
-        
+
     Returns
     -------
     X : np.ndarray
@@ -31,22 +32,23 @@ def prepare_time_series_data(
     """
     X = df[time_column].values
     y = df[value_column].values
-    
+
     # Convert datetime to numeric if needed
     if pd.api.types.is_datetime64_any_dtype(df[time_column]):
         X = pd.to_numeric(df[time_column]).values
-    
+
     return X, y
 
 
 def extract_trend_results(
     gam: GAMRegressor,
     X: np.ndarray,
+    y: np.ndarray,
     include_ci: bool = True,
 ) -> pd.DataFrame:
     """
     Extract trend predictions and confidence intervals from fitted GAM.
-    
+
     Parameters
     ----------
     gam : GAMRegressor
@@ -55,7 +57,7 @@ def extract_trend_results(
         Time values for prediction
     include_ci : bool
         Whether to include confidence intervals
-        
+
     Returns
     -------
     pd.DataFrame
@@ -63,15 +65,21 @@ def extract_trend_results(
     """
     if include_ci:
         mean, ci_lower, ci_upper = gam.predict_with_ci(X)
-        return pd.DataFrame({
-            'time': X.flatten(),
-            'predicted': mean,
-            'ci_lower': ci_lower,
-            'ci_upper': ci_upper,
-        })
+        return pd.DataFrame(
+            {
+                "y": y.flatten(),
+                "time": X.flatten(),
+                "predicted": mean,
+                "ci_lower": ci_lower,
+                "ci_upper": ci_upper,
+            }
+        )
     else:
         predictions = gam.predict(X)
-        return pd.DataFrame({
-            'time': X.flatten(),
-            'predicted': predictions,
-        })
+        return pd.DataFrame(
+            {
+                "y": y.flatten(),
+                "time": X.flatten(),
+                "predicted": predictions,
+            }
+        )

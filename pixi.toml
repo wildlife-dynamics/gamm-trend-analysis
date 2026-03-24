@@ -1,14 +1,14 @@
 [project]
 name = "gamm-trend-analysis"
 channels = [
-    # Uncomment the following lines to use local channels for development.
-    # "file:///tmp/ecoscope-workflows/release/artifacts/",
-    # "file:///tmp/ecoscope-workflows-custom/release/artifacts/",
-    'https://repo.prefix.dev/ecoscope-workflows/',
-    'https://repo.prefix.dev/ecoscope-workflows-custom/',
-    'conda-forge',
+  # Uncomment the following lines to use local channels for development.
+  # "file:///tmp/ecoscope-workflows/release/artifacts/",
+  # "file:///tmp/ecoscope-workflows-custom/release/artifacts/",
+  'https://repo.prefix.dev/ecoscope-workflows/',
+  'https://repo.prefix.dev/ecoscope-workflows-custom/',
+  'conda-forge',
 ]
-platforms = ['linux-64', 'osx-arm64', 'win-64']
+platforms = ['linux-64', 'osx-64', 'osx-arm64', 'win-64']
 
 [dependencies]
 curl = "*"
@@ -18,18 +18,20 @@ hatch = "*"
 
 [feature.compile.dependencies]
 # Include this if you add new tasks and the package has been built
+ecoscope-workflows-core = "0.22.16.*"
+ecoscope-workflows-ext-custom = "0.0.37.*"
+ecoscope-workflows-ext-ecoscope = "0.22.16.*"
 # ecoscope-workflows-ext-gamm-trend-analysis = "*"
 
-ecoscope-workflows-core = "0.18.0.*"
-# Here we don't specify the channel on purpose, as we want to use the local channel if it exists,
-# otherwise we fall back to the remote channel.
-# If you want to ensure a specific channel to incorporate your local changes, you can uncomment the line below.
-# ecoscope-workflows-core = { version = "*", channel = "file:///tmp/ecoscope-workflows/release/artifacts/" }
-# ecoscope-workflows-ext-gamm-trend-analysis = { version = "*", channel = "file:///tmp/ecoscope-workflows-custom/release/artifacts/" }
+
+[feature.compile.pypi-dependencies]
+# Note: you can mark your task libraries editable here.
+# # Remember to comment out duplicate dependencies in [feature.compile.dependencies] above
+ecoscope-workflows-ext-gamm-trend-analysis = { path = "src/ecoscope-workflows-ext-gamm-trend-analysis", editable = true }
 
 [environments]
 compile = { features = [
-    "compile",
+  "compile",
 ], solve-group = "compile", no-default-feature = true }
 
 [tasks]

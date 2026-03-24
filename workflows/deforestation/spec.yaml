@@ -1,75 +1,146 @@
 id: deforestation
+
 requirements:
   - name: ecoscope-workflows-core
-    version: "*"
+    version: "0.22.16.*"
     channel: https://repo.prefix.dev/ecoscope-workflows/
+
+  - name: ecoscope-workflows-ext-ecoscope
+    version: "0.22.16.*"
+    channel: https://repo.prefix.dev/ecoscope-workflows/
+
+  - name: ecoscope-workflows-ext-custom
+    version: "0.0.37"
+    channel: https://repo.prefix.dev/ecoscope-workflows-custom/
+
   - name: ecoscope-workflows-ext-gamm-trend-analysis
     version: "*"
     channel: file:///tmp/ecoscope-workflows-custom/release/artifacts/
 
+rjsf-overrides:
+  $defs:
+    # ValueGrouper.properties.index_name.oneOf: [
+    #   {"const": "name", "title": "Region of Interest"},
+    # ]
+    LocalFileSpatialFeatures.properties.file_path.default: ""
+    LocalFileSpatialFeatures.properties.layer.type: ["string", "null"]
+    RemoteFileSpatialFeatures.properties.url.default: ""
+    RemoteFileSpatialFeatures.properties.layer.type: ["string", "null"]
+  properties:
+    # groupers.properties.groupers.items.anyOf:
+    #   - "$ref": "#/$defs/ValueGrouper"
+    #
+    # groupers.properties.groupers.default:
+    #   - "index_name": "name"
 
+    roi.properties.config.anyOf:
+      [
+        { "$ref": "#/$defs/LocalFileSpatialFeatures" },
+        { "$ref": "#/$defs/RemoteFileSpatialFeatures" },
+      ]
 workflow:
   - name: Set Workflow Details
     id: workflow_details
     task: set_workflow_details
+
+  - name: Connect to Earth Engine
+    id: gee_project_name
+    task: set_gee_connection
+
+  - name: Define Base Maps
+    id: base_maps
+    task: set_base_maps_pydeck
+
   - name: Time Range
     id: time_range
     task: set_time_range
     partial:
       time_format: "%d %b %Y %H:%M:%S %Z"
-  - name: Set Groupers
-    id: groupers
-    task: set_groupers
-  - name: Get Time Series Data
-    id: time_series_data
-    task: get_observations
+
+  # - name: Set Groupers
+  #   id: groupers
+  #   task: set_groupers
+  - name: Load Region of Interest
+    id: roi
+    task: load_spatial_features_group
+
+    # Analysis
+  - name: Extract Forest Cover Trends
+    id: forest_cover_trends
+    task: extract_forest_cover_trends
     partial:
-      time_range: ${{ workflow.time_range.return }}
+      client: ${{ workflow.gee_project_name.return }}
+      aoi: ${{ workflow.roi.return }}
+
   - name: Fit GAMM Model
     id: gamm_model
     task: fit_gamm_model
     partial:
-      dataframe: ${{ workflow.time_series_data.return }}
-      time_column: "recorded_at"
-      value_column: "value"
-      optimize_alpha: true
+      dataframe: ${{ workflow.forest_cover_trends.return }}
+      time_column: "year"
+      value_column: "survival_area"
+      alpha: null
       metric: "aic"
+      optimize_alpha: true
+      lower_bound: null
+      upper_bound: null
+
   - name: Generate Trend Predictions
     id: trend_predictions
     task: predict_gamm_trends
     partial:
       model_params: ${{ workflow.gamm_model.return }}
+      time_values: null
       include_ci: true
-  - name: Create Trend Chart
-    id: trend_chart
-    task: draw_line_chart
+
+  - name: Create Forest Cover Trend Chart
+    id: forest_conver_chart
+    task: draw_historic_timeseries
     partial:
       dataframe: ${{ workflow.trend_predictions.return }}
-      x_column: "time"
-      y_column: "predicted"
-      line_kwargs:
-        shape: "spline"
-      layout_kwargs:
+      current_value_column: "y"
+      time_column: "time"
+      current_value_title: "Observed Survival Area"
+      historic_min_column: "ci_lower"
+      historic_max_column: "ci_upper"
+      historic_mean_column: "predicted"
+      historic_mean_title: "GAM Mean"
+      historic_band_title: "GAM 95% CI"
+      layout_style:
+        title: Forest survival area trend (GAM)
         xaxis:
-          title: "Time"
+          title: "Year"
         yaxis:
-          title: "Trend"
-        hovermode: "closest"
-  - name: Create Trend Chart Widget
-    id: trend_chart_widget
-    task: create_plot_widget_single_view
+          title: "Survival Area (acres)"
+      upper_lower_band_style:
+        mode: lines
+        line:
+          color: green
+      historic_mean_style: null
+      current_value_style: null
+
+  - name: Persist Forest Cover Trend Chart as Text
+    id: persist_forest_cover
+    task: persist_text
     partial:
-      title: "GAMM Trend Analysis"
-    map:
-      argnames: [view, data]
-      argvalues: ${{ workflow.trend_chart.return }}
-  - name: Create GAMM Dashboard
+      root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+      text: ${{ workflow.forest_conver_chart.return }}
+
+  - name: Create Forest Cover Trend Chart Widget
+    id: forest_cover_widget
+    task: create_plot_widget_single_view
+    skipif:
+      conditions:
+        - never
+    partial:
+      title: "Forest Cover Trend Chart"
+      data: ${{ workflow.persist_forest_cover.return }}
+
+  - name: Create Deforestation Dashboard
     id: gamm_dashboard
     task: gather_dashboard
     partial:
       details: ${{ workflow.workflow_details.return}}
-      widgets:
-        - ${{ workflow.trend_chart_widget.return }}
       time_range: ${{ workflow.time_range.return}}
-      groupers: ${{ workflow.groupers.return }}
-
+      widgets:
+        - ${{ workflow.forest_cover_widget.return }}

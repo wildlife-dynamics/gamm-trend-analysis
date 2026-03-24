@@ -4,9 +4,10 @@ workflow_details:
 time_range:
   since: "2015-01-01T00:00:00Z"
   until: "2015-02-28T23:59:59Z"
-groupers:
-  groupers: []
-calculator:
-  a: 1
-  b: 1
-  operation: "add"
+gee_project_name:
+  data_source:
+    name: ecoscope_poc
+roi:
+  config:
+    file_path: "~/Downloads/Mount_Kenya_Fores.parquet"
+    name_column: "FOREST"
