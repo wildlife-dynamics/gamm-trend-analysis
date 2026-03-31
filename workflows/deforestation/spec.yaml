@@ -14,8 +14,8 @@ requirements:
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
 
   - name: ecoscope-workflows-ext-gamm-trend-analysis
-    version: "*"
-    channel: file:///tmp/ecoscope-workflows-custom/release/artifacts/
+    version: "0.0.0"
+    channel: https://repo.prefix.dev/ecoscope-workflows-custom/
 
 rjsf-overrides:
   $defs:
