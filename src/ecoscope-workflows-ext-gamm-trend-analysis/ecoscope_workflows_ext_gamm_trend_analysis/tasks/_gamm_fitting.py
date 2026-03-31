@@ -69,32 +69,6 @@ def fit_gamm_model(
     )  # Ensure metric is in correct format for optimization
     _family = family.lower()  # Ensure family is in correct format for GAMRegressor
 
-    # # Check for degenerate cases (e.g. all zeros or constant value)
-    # if len(np.unique(y)) < 2:
-    #     best_alpha = alpha or 0.1
-    #     metrics = {
-    #         "alpha": best_alpha,
-    #         "aic": 0.0,
-    #         "bic": 0.0,
-    #         "r_squared": 1.0,
-    #         "mse": 0.0,
-    #     }
-    #     return {
-    #         "model_params": {
-    #             "alpha": best_alpha,
-    #             "degree_of_freedom": degree_of_freedom,
-    #             "degree": degree,
-    #             "family": _family,
-    #             "lower_bound": lower_bound,
-    #             "upper_bound": upper_bound,
-    #             "is_degenerate": True,
-    #             "constant_value": float(y[0]) if len(y) > 0 else 0.0,
-    #         },
-    #         "X": X.tolist(),
-    #         "y": y.tolist(),
-    #         "metrics": metrics,
-    #     }
-
     if len(np.unique(y)) < 2:
         return SKIP_SENTINEL
 
@@ -176,23 +150,6 @@ def predict_gamm_trends(
     params = model_params["model_params"]
     X_train = np.array(model_params["X"]).reshape(-1, 1)
     y_train = np.array(model_params["y"])
-    #
-    # if params.get("is_degenerate"):
-    #     constant_value = params.get("constant_value", 0.0)
-    #     # Predict - use provided time_values or original training times
-    #     if time_values is None:
-    #         time_values = model_params["X"]
-    #
-    #     X_pred = np.array(time_values)
-    #     return pd.DataFrame(
-    #         {
-    #             "y": np.interp(X_pred, X_train.flatten(), y_train) if len(y_train) > 0 else np.zeros_like(X_pred),
-    #             "time": X_pred,
-    #             "predicted": np.full_like(X_pred, constant_value, dtype=float),
-    #             "ci_lower": np.full_like(X_pred, constant_value, dtype=float),
-    #             "ci_upper": np.full_like(X_pred, constant_value, dtype=float),
-    #         }
-    #     )
 
     # Reconstruct model
     params = model_params["model_params"]
