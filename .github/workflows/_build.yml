@@ -1,0 +1,30 @@
+name: Build Release
+
+on:
+  workflow_call:
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # get tags, so hatch-vcs dev version is correct
+
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.60.0
+
+      - name: Build release
+        run: pixi run --manifest-path pixi.toml build-release
+
+      - name: Upload conda channel
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            /tmp/ecoscope-workflows-custom/release/artifacts/
+            !/tmp/ecoscope-workflows-custom/release/artifacts/bld
+            !/tmp/ecoscope-workflows-custom/release/artifacts/src_cache
+          if-no-files-found: error
+          compression-level: 0

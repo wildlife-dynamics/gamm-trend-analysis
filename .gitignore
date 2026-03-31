@@ -167,3 +167,7 @@ cython_debug/
 
 .claude
 **~$**
+
+Makefile
+Makefile.*
+ee_private_key.pem

@@ -3,11 +3,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import Enum
-from typing import List, Literal, Optional, Union
+from typing import List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, confloat, constr
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WorkflowDetails(BaseModel):
@@ -16,174 +15,6 @@ class WorkflowDetails(BaseModel):
     )
     name: str = Field(..., title="Workflow Name")
     description: Optional[str] = Field("", title="Workflow Description")
-
-
-class Url(str, Enum):
-    https___tile_openstreetmap_org__z___x___y__png = (
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-    )
-
-
-class BaseMaps1(BaseModel):
-    url: Literal["https://tile.openstreetmap.org/{z}/{x}/{y}.png"] = Field(
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png", title="Preset Layer URL"
-    )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        1,
-        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
-        title="Layer Opacity",
-    )
-
-
-class Url1(str, Enum):
-    https___server_arcgisonline_com_ArcGIS_rest_services_World_Street_Map_MapServer_tile__z___y___x_ = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-
-
-class BaseMaps2(BaseModel):
-    url: Literal[
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-    ] = Field(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-        title="Preset Layer URL",
-    )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        1,
-        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
-        title="Layer Opacity",
-    )
-
-
-class Url2(str, Enum):
-    https___server_arcgisonline_com_ArcGIS_rest_services_World_Imagery_MapServer_tile__z___y___x_ = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-
-
-class BaseMaps3(BaseModel):
-    url: Literal[
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-    ] = Field(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        title="Preset Layer URL",
-    )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        1,
-        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
-        title="Layer Opacity",
-    )
-
-
-class Url3(str, Enum):
-    https___server_arcgisonline_com_ArcGIS_rest_services_World_Topo_Map_MapServer_tile__z___y___x_ = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
-
-
-class BaseMaps4(BaseModel):
-    url: Literal[
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
-    ] = Field(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-        title="Preset Layer URL",
-    )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        1,
-        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
-        title="Layer Opacity",
-    )
-
-
-class Url4(str, Enum):
-    https___tiles_arcgis_com_tiles_POUcpLYXNckpLjnY_arcgis_rest_services_landDx_basemap_tiles_mapservice_MapServer_tile__z___y___x_ = "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}"
-
-
-class BaseMaps5(BaseModel):
-    url: Literal[
-        "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}"
-    ] = Field(
-        "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}",
-        title="Preset Layer URL",
-    )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        1,
-        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
-        title="Layer Opacity",
-    )
-
-
-class Url5(str, Enum):
-    https___server_arcgisonline_com_arcgis_rest_services_Elevation_World_Hillshade_MapServer_tile__z___y___x_ = "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
-
-
-class BaseMaps6(BaseModel):
-    url: Literal[
-        "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
-    ] = Field(
-        "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
-        title="Preset Layer URL",
-    )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        1,
-        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
-        title="Layer Opacity",
-    )
-
-
-class BaseMaps7(BaseModel):
-    url: Optional[
-        constr(
-            pattern=r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}([-a-zA-Z0-9()@:%_\+.~#?&//=\{\}]*)"
-        )
-    ] = Field(
-        "https://example.tiles.com/{z}/{x}/{y}.png",
-        description="The URL of a publicly accessible tiled raster service.",
-        title="Custom Layer URL",
-    )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
-        1,
-        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
-        title="Custom Layer Opacity",
-    )
-    max_zoom: Optional[int] = Field(
-        20,
-        description="Set the maximum zoom level to fetch tiles for.",
-        title="Custom Layer Max Zoom",
-    )
-    min_zoom: Optional[int] = Field(
-        0,
-        description="Set the minimum zoom level to fetch tiles for.",
-        title="Custom Layer Min Zoom",
-    )
-
-
-class BaseMaps(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    base_maps: Optional[
-        List[
-            Union[
-                BaseMaps1,
-                BaseMaps2,
-                BaseMaps3,
-                BaseMaps4,
-                BaseMaps5,
-                BaseMaps6,
-                BaseMaps7,
-            ]
-        ]
-    ] = Field(
-        [
-            {
-                "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-                "opacity": 1,
-                "max_zoom": 20,
-            },
-            {
-                "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                "opacity": 0.5,
-                "max_zoom": 20,
-            },
-        ],
-        description="Select tile layers to use as base layers in map outputs. The first layer in the list will be the bottommost layer displayed.",
-        title=" ",
-    )
 
 
 class ForestCoverTrends(BaseModel):
@@ -203,15 +34,26 @@ class ForestCoverTrends(BaseModel):
     )
 
 
+class Metric(str, Enum):
+    AIC = "AIC"
+    BIC = "BIC"
+    Euclidean = "Euclidean"
+    MSE = "MSE"
+    R_Squared = "R-Squared"
+
+
 class Family(str, Enum):
-    gaussian = "gaussian"
-    poisson = "poisson"
-    binomial = "binomial"
+    Gaussian = "Gaussian"
+    Poisson = "Poisson"
+    Binomial = "Binomial"
 
 
 class GammModel(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
+    )
+    metric: Optional[Metric] = Field(
+        "AIC", description="Metric for optimization", title="Metric"
     )
     degree_of_freedom: Optional[int] = Field(
         20, description="Degrees of freedom for spline basis", title="Degree Of Freedom"
@@ -220,7 +62,7 @@ class GammModel(BaseModel):
         3, description="Degree of B-spline basis", title="Degree"
     )
     family: Optional[Family] = Field(
-        "gaussian", description="Distribution family for GLM", title="Family"
+        "Gaussian", description="Distribution family for GLM", title="Family"
     )
 
 
@@ -228,11 +70,16 @@ class GoogleEarthEngineConnection(BaseModel):
     name: str = Field(..., title="Data Source")
 
 
-class TimezoneInfo(BaseModel):
-    label: str = Field(..., title="Label")
-    tzCode: str = Field(..., title="Tzcode")
-    name: str = Field(..., title="Name")
-    utc: str = Field(..., title="Utc")
+class SpatialGrouper(BaseModel):
+    spatial_index_name: str = Field(..., title="Spatial Regions")
+
+
+class TemporalGrouper(BaseModel):
+    temporal_index: str = Field(..., title="Time")
+
+
+class ValueGrouper(BaseModel):
+    index_name: str = Field(..., title="Category")
 
 
 class EarthRangerSpatialFeatures(BaseModel):
@@ -289,13 +136,15 @@ class GeeProjectName(BaseModel):
     )
 
 
-class TimeRange(BaseModel):
+class Groupers(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    since: datetime = Field(..., description="The start time", title="Since")
-    until: datetime = Field(..., description="The end time", title="Until")
-    timezone: Optional[TimezoneInfo] = Field(None, title="Timezone")
+    groupers: Optional[List[ValueGrouper]] = Field(
+        [{"index_name": "name"}],
+        description="            Specify how the data should be grouped to create the views for your dashboard.\n            This field is optional; if left blank, all the data will appear in a single view.\n            ",
+        title=" ",
+    )
 
 
 class Roi(BaseModel):
@@ -319,10 +168,7 @@ class FormData(BaseModel):
     gee_project_name: Optional[GeeProjectName] = Field(
         None, title="Connect to Earth Engine"
     )
-    base_maps: Optional[BaseMaps] = Field(None, title="Define Base Maps")
-    time_range: Optional[TimeRange] = Field(
-        None, description="Choose the period of time to analyze.", title="Time Range"
-    )
+    groupers: Optional[Groupers] = Field(None, title="Set Groupers")
     roi: Optional[Roi] = Field(None, title="Load Region of Interest")
     forest_cover_trends: Optional[ForestCoverTrends] = Field(
         None, title="Extract Forest Cover Trends"

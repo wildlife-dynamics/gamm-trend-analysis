@@ -19,25 +19,31 @@ requirements:
 
 rjsf-overrides:
   $defs:
-    # ValueGrouper.properties.index_name.oneOf: [
-    #   {"const": "name", "title": "Region of Interest"},
-    # ]
+    ValueGrouper.properties.index_name.oneOf:
+      [{ "const": "name", "title": "Region of Interest" }]
+
     LocalFileSpatialFeatures.properties.file_path.default: ""
     LocalFileSpatialFeatures.properties.layer.type: ["string", "null"]
     RemoteFileSpatialFeatures.properties.url.default: ""
     RemoteFileSpatialFeatures.properties.layer.type: ["string", "null"]
   properties:
-    # groupers.properties.groupers.items.anyOf:
-    #   - "$ref": "#/$defs/ValueGrouper"
-    #
-    # groupers.properties.groupers.default:
-    #   - "index_name": "name"
+    groupers.properties.groupers.items.anyOf:
+      - "$ref": "#/$defs/ValueGrouper"
+
+    groupers.properties.groupers.default:
+      - "index_name": "name"
 
     roi.properties.config.anyOf:
       [
         { "$ref": "#/$defs/LocalFileSpatialFeatures" },
         { "$ref": "#/$defs/RemoteFileSpatialFeatures" },
       ]
+task-instance-defaults:
+  skipif:
+    conditions:
+      - any_is_empty_df
+      - any_dependency_skipped
+
 workflow:
   - name: Set Workflow Details
     id: workflow_details
@@ -47,22 +53,35 @@ workflow:
     id: gee_project_name
     task: set_gee_connection
 
-  - name: Define Base Maps
-    id: base_maps
-    task: set_base_maps_pydeck
-
+    # The time range is set based on the temporal coverage of the
+    # UMD/hansen/global_forest_change_2023_v1_11 dataset (2000–2023).
   - name: Time Range
     id: time_range
     task: set_time_range
     partial:
       time_format: "%d %b %Y %H:%M:%S %Z"
+      timezone:
+        label: UTC
+        tzCode: UTC
+        name: Universal Coordinated Time
+        utc: +00:00
+      since: "2000-01-01T00:00:00.000Z"
+      until: "2023-12-31T23:59:59.000Z"
 
-  # - name: Set Groupers
-  #   id: groupers
-  #   task: set_groupers
+  - name: Set Groupers
+    id: groupers
+    task: set_groupers
+
   - name: Load Region of Interest
     id: roi
     task: load_spatial_features_group
+
+  - name: Split ROIs by Group
+    id: split_roi_groups
+    task: split_groups
+    partial:
+      df: ${{ workflow.roi.return }}
+      groupers: ${{ workflow.groupers.return }}
 
     # Analysis
   - name: Extract Forest Cover Trends
@@ -70,31 +89,36 @@ workflow:
     task: extract_forest_cover_trends
     partial:
       client: ${{ workflow.gee_project_name.return }}
-      aoi: ${{ workflow.roi.return }}
+    mapvalues:
+      argnames: aoi
+      argvalues: ${{ workflow.split_roi_groups.return}}
 
   - name: Fit GAMM Model
     id: gamm_model
     task: fit_gamm_model
     partial:
-      dataframe: ${{ workflow.forest_cover_trends.return }}
       time_column: "year"
       value_column: "survival_area"
       alpha: null
-      metric: "aic"
-      optimize_alpha: true
       lower_bound: null
       upper_bound: null
+      optimize_alpha: true
+    mapvalues:
+      argnames: dataframe
+      argvalues: ${{ workflow.forest_cover_trends.return }}
 
   - name: Generate Trend Predictions
     id: trend_predictions
     task: predict_gamm_trends
     partial:
-      model_params: ${{ workflow.gamm_model.return }}
       time_values: null
       include_ci: true
+    mapvalues:
+      argnames: model_params
+      argvalues: ${{ workflow.gamm_model.return }}
 
   - name: Create Forest Cover Trend Chart
-    id: forest_conver_chart
+    id: forest_cover_chart
     task: draw_historic_timeseries
     partial:
       dataframe: ${{ workflow.trend_predictions.return }}
@@ -118,13 +142,19 @@ workflow:
           color: green
       historic_mean_style: null
       current_value_style: null
+    mapvalues:
+      argnames: dataframe
+      argvalues: ${{ workflow.trend_predictions.return }}
 
   - name: Persist Forest Cover Trend Chart as Text
     id: persist_forest_cover
     task: persist_text
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
-      text: ${{ workflow.forest_conver_chart.return }}
+      text: ${{ workflow.forest_cover_chart.return }}
+    mapvalues:
+      argnames: text
+      argvalues: ${{ workflow.forest_cover_chart.return }}
 
   - name: Create Forest Cover Trend Chart Widget
     id: forest_cover_widget
@@ -134,7 +164,18 @@ workflow:
         - never
     partial:
       title: "Forest Cover Trend Chart"
-      data: ${{ workflow.persist_forest_cover.return }}
+    map:
+      argnames: [view, data]
+      argvalues: ${{ workflow.persist_forest_cover.return }}
+
+  - name: Merge Forest Cover Widget Views
+    id: grouped_forest_cover
+    task: merge_widget_views
+    skipif:
+      conditions:
+        - never
+    partial:
+      widgets: ${{ workflow.forest_cover_widget.return }}
 
   - name: Create Deforestation Dashboard
     id: gamm_dashboard
@@ -143,4 +184,5 @@ workflow:
       details: ${{ workflow.workflow_details.return}}
       time_range: ${{ workflow.time_range.return}}
       widgets:
-        - ${{ workflow.forest_cover_widget.return }}
+        - ${{ workflow.grouped_forest_cover.return }}
+      groupers: ${{ workflow.groupers.return }}

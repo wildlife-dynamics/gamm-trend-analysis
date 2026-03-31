@@ -1,0 +1,52 @@
+name: Discover Workflows
+
+on:
+  workflow_call:
+    outputs:
+      workflows:
+        description: "List of workflow directories"
+        value: ${{ jobs.discover-workflows.outputs.workflows }}
+      pairs:
+        description: "List of workflow-testcase pairs"
+        value: ${{ jobs.discover-workflow-test-pairs.outputs.pairs }}
+
+jobs:
+  discover-workflows:
+    runs-on: ubuntu-latest
+    outputs:
+      workflows: ${{ steps.find-workflows.outputs.workflows }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Find workflow folders
+        id: find-workflows
+        run: |
+          workflows=$(find workflows -maxdepth 1 -type d ! -path workflows | sed 's|workflows/||' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "workflows=$workflows" >> $GITHUB_OUTPUT
+          echo "Found workflows: $workflows"
+
+  discover-workflow-test-pairs:
+    runs-on: ubuntu-latest
+    outputs:
+      pairs: ${{ steps.find-pairs.outputs.pairs }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Find all workflow-testcase pairs
+        id: find-pairs
+        run: |
+          # Generate JSON array like: [{"workflow":"mapbook_report","case":"all-grouper"},...]
+          pairs=$(
+            find workflows -maxdepth 1 -type d ! -path workflows | sed 's|workflows/||' | while read workflow; do
+              test_cases_file="workflows/${workflow}/test-cases.yaml"
+              if [ -f "$test_cases_file" ]; then
+                yq eval 'keys | .[]' "$test_cases_file" | while read case; do
+                  echo "{\"workflow\":\"$workflow\",\"case\":\"$case\"}"
+                done
+              fi
+            done | jq -s -c '.'
+          )
+          echo "pairs=$pairs" >> $GITHUB_OUTPUT
+          echo "Found workflow-test pairs: $pairs"

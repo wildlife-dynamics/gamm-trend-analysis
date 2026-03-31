@@ -2,55 +2,37 @@
 
 from typing import Annotated, Literal, Optional
 import numpy as np
-import pandas as pd
 from ecoscope_workflows_core.decorators import task
 from pydantic import Field
 from ecoscope.analysis.trend_analysis import GAMRegressor, optimize_gam
 from .__gamm_utils import prepare_time_series_data, extract_trend_results
 from ecoscope_workflows_core.annotations import AnyDataFrame
+from ecoscope_workflows_core.skip import SKIP_SENTINEL, SkipSentinel
 
 
 @task
 def fit_gamm_model(
-    dataframe: Annotated[
-        AnyDataFrame, Field(description="DataFrame containing time series data")
-    ],
-    time_column: Annotated[
-        str, Field(description="Column name containing time/date values")
-    ] = "time",
-    value_column: Annotated[
-        str, Field(description="Column name containing values to analyze")
-    ] = "value",
+    dataframe: Annotated[AnyDataFrame, Field(description="DataFrame containing time series data")],
+    time_column: Annotated[str, Field(description="Column name containing time/date values")] = "time",
+    value_column: Annotated[str, Field(description="Column name containing values to analyze")] = "value",
     alpha: Annotated[
         Optional[float],
-        Field(
-            default=None, description="Smoothing parameter. If None, will be optimized."
-        ),
+        Field(default=None, description="Smoothing parameter. If None, will be optimized."),
     ] = None,
-    optimize_alpha: Annotated[
-        bool, Field(default=True, description="Whether to optimize alpha parameter")
-    ] = True,
+    optimize_alpha: Annotated[bool, Field(default=True, description="Whether to optimize alpha parameter")] = True,
     metric: Annotated[
-        Literal["aic", "bic", "euclidean", "mse", "r_squared"],
-        Field(default="aic", description="Metric for optimization"),
-    ] = "aic",
-    degree_of_freedom: Annotated[
-        int, Field(default=20, description="Degrees of freedom for spline basis")
-    ] = 20,
-    degree: Annotated[
-        int, Field(default=3, description="Degree of B-spline basis")
-    ] = 3,
+        Literal["AIC", "BIC", "Euclidean", "MSE", "R-Squared"],
+        Field(default="AIC", description="Metric for optimization"),
+    ] = "AIC",
+    degree_of_freedom: Annotated[int, Field(default=20, description="Degrees of freedom for spline basis")] = 20,
+    degree: Annotated[int, Field(default=3, description="Degree of B-spline basis")] = 3,
     family: Annotated[
-        Literal["gaussian", "poisson", "binomial"],
-        Field(default="gaussian", description="Distribution family for GLM"),
-    ] = "gaussian",
-    lower_bound: Annotated[
-        Optional[float], Field(default=None, description="Lower bound for spline knots")
-    ] = None,
-    upper_bound: Annotated[
-        Optional[float], Field(default=None, description="Upper bound for spline knots")
-    ] = None,
-) -> dict:
+        Literal["Gaussian", "Poisson", "Binomial"],
+        Field(default="Gaussian", description="Distribution family for GLM"),
+    ] = "Gaussian",
+    lower_bound: Annotated[Optional[float], Field(default=None, description="Lower bound for spline knots")] = None,
+    upper_bound: Annotated[Optional[float], Field(default=None, description="Upper bound for spline knots")] = None,
+) -> dict | SkipSentinel:
     """
     Fit a GAM model to time series data.
 
@@ -63,15 +45,21 @@ def fit_gamm_model(
     # Prepare data
     X, y = prepare_time_series_data(dataframe, time_column, value_column)
 
+    _metric = metric.lower().replace("-", "_")  # Ensure metric is in correct format for optimization
+    _family = family.lower()  # Ensure family is in correct format for GAMRegressor
+
+    if len(np.unique(y)) < 2:
+        return SKIP_SENTINEL
+
     # Fit model
     if optimize_alpha and alpha is None:
         best_alpha, gam = optimize_gam(
             X=X,
             y=y,
-            metric=metric,
+            metric=_metric,
             degree_of_freedom=degree_of_freedom,
             degree=degree,
-            family=family,
+            family=_family,
             lower_bound=lower_bound,
             upper_bound=upper_bound,
         )
@@ -82,7 +70,7 @@ def fit_gamm_model(
             alpha=alpha,
             degree_of_freedom=degree_of_freedom,
             degree=degree,
-            family=family,
+            family=_family,
         ).fit(X, y, lower_bound=lower_bound, upper_bound=upper_bound)
         best_alpha = alpha
 
@@ -102,7 +90,7 @@ def fit_gamm_model(
             "alpha": best_alpha,
             "degree_of_freedom": degree_of_freedom,
             "degree": degree,
-            "family": family,
+            "family": _family,
             "lower_bound": lower_bound,
             "upper_bound": upper_bound,
         },
@@ -114,9 +102,7 @@ def fit_gamm_model(
 
 @task
 def predict_gamm_trends(
-    model_params: Annotated[
-        dict, Field(description="Model parameters from fit_gamm_model")
-    ],
+    model_params: Annotated[dict, Field(description="Model parameters from fit_gamm_model")],
     time_values: Annotated[
         Optional[list],
         Field(
@@ -124,9 +110,7 @@ def predict_gamm_trends(
             description="Time values for prediction. If None, uses original training times.",
         ),
     ] = None,
-    include_ci: Annotated[
-        bool, Field(default=True, description="Include confidence intervals")
-    ] = True,
+    include_ci: Annotated[bool, Field(default=True, description="Include confidence intervals")] = True,
 ) -> AnyDataFrame:
     """
     Generate trend predictions from fitted GAM model.
