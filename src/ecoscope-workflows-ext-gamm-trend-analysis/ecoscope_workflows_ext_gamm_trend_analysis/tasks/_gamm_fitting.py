@@ -151,11 +151,6 @@ def predict_gamm_trends(
     X_train = np.array(model_params["X"]).reshape(-1, 1)
     y_train = np.array(model_params["y"])
 
-    # Reconstruct model
-    params = model_params["model_params"]
-    X_train = np.array(model_params["X"]).reshape(-1, 1)
-    y_train = np.array(model_params["y"])
-
     gam = GAMRegressor(
         alpha=params["alpha"],
         degree_of_freedom=params["degree_of_freedom"],
