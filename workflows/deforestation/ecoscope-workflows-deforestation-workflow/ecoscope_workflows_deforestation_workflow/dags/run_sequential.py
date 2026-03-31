@@ -6,16 +6,22 @@ from ecoscope_workflows_core.tasks.config import (
     set_workflow_details as set_workflow_details,
 )
 from ecoscope_workflows_core.tasks.filter import set_time_range as set_time_range
+from ecoscope_workflows_core.tasks.groupby import set_groupers as set_groupers
+from ecoscope_workflows_core.tasks.groupby import split_groups as split_groups
 from ecoscope_workflows_core.tasks.io import persist_text as persist_text
 from ecoscope_workflows_core.tasks.io import set_gee_connection as set_gee_connection
 from ecoscope_workflows_core.tasks.results import (
     create_plot_widget_single_view as create_plot_widget_single_view,
 )
 from ecoscope_workflows_core.tasks.results import gather_dashboard as gather_dashboard
-from ecoscope_workflows_core.tasks.skip import never as never
-from ecoscope_workflows_ext_custom.tasks.results import (
-    set_base_maps_pydeck as set_base_maps_pydeck,
+from ecoscope_workflows_core.tasks.results import (
+    merge_widget_views as merge_widget_views,
 )
+from ecoscope_workflows_core.tasks.skip import (
+    any_dependency_skipped as any_dependency_skipped,
+)
+from ecoscope_workflows_core.tasks.skip import any_is_empty_df as any_is_empty_df
+from ecoscope_workflows_core.tasks.skip import never as never
 from ecoscope_workflows_ext_ecoscope.tasks.io import (
     load_spatial_features_group as load_spatial_features_group,
 )
@@ -43,6 +49,13 @@ def main(params: Params):
         .set_task_instance_id("workflow_details")
         .handle_errors()
         .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
         .partial(**(params_dict.get("workflow_details") or {}))
         .call()
     )
@@ -52,16 +65,14 @@ def main(params: Params):
         .set_task_instance_id("gee_project_name")
         .handle_errors()
         .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
         .partial(**(params_dict.get("gee_project_name") or {}))
-        .call()
-    )
-
-    base_maps = (
-        set_base_maps_pydeck.validate()
-        .set_task_instance_id("base_maps")
-        .handle_errors()
-        .with_tracing()
-        .partial(**(params_dict.get("base_maps") or {}))
         .call()
     )
 
@@ -70,9 +81,41 @@ def main(params: Params):
         .set_task_instance_id("time_range")
         .handle_errors()
         .with_tracing()
-        .partial(
-            time_format="%d %b %Y %H:%M:%S %Z", **(params_dict.get("time_range") or {})
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
         )
+        .partial(
+            time_format="%d %b %Y %H:%M:%S %Z",
+            timezone={
+                "label": "UTC",
+                "tzCode": "UTC",
+                "name": "Universal Coordinated Time",
+                "utc": "+00:00",
+            },
+            since="2000-01-01T00:00:00.000Z",
+            until="2023-12-31T23:59:59.000Z",
+            **(params_dict.get("time_range") or {}),
+        )
+        .call()
+    )
+
+    groupers = (
+        set_groupers.validate()
+        .set_task_instance_id("groupers")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(**(params_dict.get("groupers") or {}))
         .call()
     )
 
@@ -81,7 +124,32 @@ def main(params: Params):
         .set_task_instance_id("roi")
         .handle_errors()
         .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
         .partial(**(params_dict.get("roi") or {}))
+        .call()
+    )
+
+    split_roi_groups = (
+        split_groups.validate()
+        .set_task_instance_id("split_roi_groups")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(
+            df=roi, groupers=groupers, **(params_dict.get("split_roi_groups") or {})
+        )
         .call()
     )
 
@@ -90,12 +158,17 @@ def main(params: Params):
         .set_task_instance_id("forest_cover_trends")
         .handle_errors()
         .with_tracing()
-        .partial(
-            client=gee_project_name,
-            aoi=roi,
-            **(params_dict.get("forest_cover_trends") or {}),
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
         )
-        .call()
+        .partial(
+            client=gee_project_name, **(params_dict.get("forest_cover_trends") or {})
+        )
+        .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
     )
 
     gamm_model = (
@@ -103,18 +176,23 @@ def main(params: Params):
         .set_task_instance_id("gamm_model")
         .handle_errors()
         .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
         .partial(
-            dataframe=forest_cover_trends,
             time_column="year",
             value_column="survival_area",
             alpha=None,
-            metric="aic",
-            optimize_alpha=True,
             lower_bound=None,
             upper_bound=None,
+            optimize_alpha=True,
             **(params_dict.get("gamm_model") or {}),
         )
-        .call()
+        .mapvalues(argnames=["dataframe"], argvalues=forest_cover_trends)
     )
 
     trend_predictions = (
@@ -122,20 +200,33 @@ def main(params: Params):
         .set_task_instance_id("trend_predictions")
         .handle_errors()
         .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
         .partial(
-            model_params=gamm_model,
             time_values=None,
             include_ci=True,
             **(params_dict.get("trend_predictions") or {}),
         )
-        .call()
+        .mapvalues(argnames=["model_params"], argvalues=gamm_model)
     )
 
-    forest_conver_chart = (
+    forest_cover_chart = (
         draw_historic_timeseries.validate()
-        .set_task_instance_id("forest_conver_chart")
+        .set_task_instance_id("forest_cover_chart")
         .handle_errors()
         .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
         .partial(
             dataframe=trend_predictions,
             current_value_column="y",
@@ -154,9 +245,9 @@ def main(params: Params):
             upper_lower_band_style={"mode": "lines", "line": {"color": "green"}},
             historic_mean_style=None,
             current_value_style=None,
-            **(params_dict.get("forest_conver_chart") or {}),
+            **(params_dict.get("forest_cover_chart") or {}),
         )
-        .call()
+        .mapvalues(argnames=["dataframe"], argvalues=trend_predictions)
     )
 
     persist_forest_cover = (
@@ -164,12 +255,19 @@ def main(params: Params):
         .set_task_instance_id("persist_forest_cover")
         .handle_errors()
         .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
         .partial(
             root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-            text=forest_conver_chart,
+            text=forest_cover_chart,
             **(params_dict.get("persist_forest_cover") or {}),
         )
-        .call()
+        .mapvalues(argnames=["text"], argvalues=forest_cover_chart)
     )
 
     forest_cover_widget = (
@@ -185,8 +283,25 @@ def main(params: Params):
         )
         .partial(
             title="Forest Cover Trend Chart",
-            data=persist_forest_cover,
             **(params_dict.get("forest_cover_widget") or {}),
+        )
+        .map(argnames=["view", "data"], argvalues=persist_forest_cover)
+    )
+
+    grouped_forest_cover = (
+        merge_widget_views.validate()
+        .set_task_instance_id("grouped_forest_cover")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                never,
+            ],
+            unpack_depth=1,
+        )
+        .partial(
+            widgets=forest_cover_widget,
+            **(params_dict.get("grouped_forest_cover") or {}),
         )
         .call()
     )
@@ -196,10 +311,18 @@ def main(params: Params):
         .set_task_instance_id("gamm_dashboard")
         .handle_errors()
         .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
         .partial(
             details=workflow_details,
             time_range=time_range,
-            widgets=[forest_cover_widget],
+            widgets=[grouped_forest_cover],
+            groupers=groupers,
             **(params_dict.get("gamm_dashboard") or {}),
         )
         .call()

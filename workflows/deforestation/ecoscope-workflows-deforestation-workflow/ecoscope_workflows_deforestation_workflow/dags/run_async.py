@@ -7,16 +7,22 @@ from ecoscope_workflows_core.tasks.config import (
     set_workflow_details as set_workflow_details,
 )
 from ecoscope_workflows_core.tasks.filter import set_time_range as set_time_range
+from ecoscope_workflows_core.tasks.groupby import set_groupers as set_groupers
+from ecoscope_workflows_core.tasks.groupby import split_groups as split_groups
 from ecoscope_workflows_core.tasks.io import persist_text as persist_text
 from ecoscope_workflows_core.tasks.io import set_gee_connection as set_gee_connection
 from ecoscope_workflows_core.tasks.results import (
     create_plot_widget_single_view as create_plot_widget_single_view,
 )
 from ecoscope_workflows_core.tasks.results import gather_dashboard as gather_dashboard
-from ecoscope_workflows_core.tasks.skip import never as never
-from ecoscope_workflows_ext_custom.tasks.results import (
-    set_base_maps_pydeck as set_base_maps_pydeck,
+from ecoscope_workflows_core.tasks.results import (
+    merge_widget_views as merge_widget_views,
 )
+from ecoscope_workflows_core.tasks.skip import (
+    any_dependency_skipped as any_dependency_skipped,
+)
+from ecoscope_workflows_core.tasks.skip import any_is_empty_df as any_is_empty_df
+from ecoscope_workflows_core.tasks.skip import never as never
 from ecoscope_workflows_ext_ecoscope.tasks.io import (
     load_spatial_features_group as load_spatial_features_group,
 )
@@ -42,16 +48,23 @@ def main(params: Params):
     dependencies = {
         "workflow_details": [],
         "gee_project_name": [],
-        "base_maps": [],
         "time_range": [],
+        "groupers": [],
         "roi": [],
-        "forest_cover_trends": ["gee_project_name", "roi"],
+        "split_roi_groups": ["roi", "groupers"],
+        "forest_cover_trends": ["gee_project_name", "split_roi_groups"],
         "gamm_model": ["forest_cover_trends"],
         "trend_predictions": ["gamm_model"],
-        "forest_conver_chart": ["trend_predictions"],
-        "persist_forest_cover": ["forest_conver_chart"],
+        "forest_cover_chart": ["trend_predictions", "trend_predictions"],
+        "persist_forest_cover": ["forest_cover_chart", "forest_cover_chart"],
         "forest_cover_widget": ["persist_forest_cover"],
-        "gamm_dashboard": ["workflow_details", "time_range", "forest_cover_widget"],
+        "grouped_forest_cover": ["forest_cover_widget"],
+        "gamm_dashboard": [
+            "workflow_details",
+            "time_range",
+            "grouped_forest_cover",
+            "groupers",
+        ],
     }
 
     nodes = {
@@ -60,6 +73,13 @@ def main(params: Params):
             .set_task_instance_id("workflow_details")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial=(params_dict.get("workflow_details") or {}),
             method="call",
@@ -69,17 +89,15 @@ def main(params: Params):
             .set_task_instance_id("gee_project_name")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial=(params_dict.get("gee_project_name") or {}),
-            method="call",
-        ),
-        "base_maps": Node(
-            async_task=set_base_maps_pydeck.validate()
-            .set_task_instance_id("base_maps")
-            .handle_errors()
-            .with_tracing()
-            .set_executor("lithops"),
-            partial=(params_dict.get("base_maps") or {}),
             method="call",
         ),
         "time_range": Node(
@@ -87,11 +105,42 @@ def main(params: Params):
             .set_task_instance_id("time_range")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial={
                 "time_format": "%d %b %Y %H:%M:%S %Z",
+                "timezone": {
+                    "label": "UTC",
+                    "tzCode": "UTC",
+                    "name": "Universal Coordinated Time",
+                    "utc": "+00:00",
+                },
+                "since": "2000-01-01T00:00:00.000Z",
+                "until": "2023-12-31T23:59:59.000Z",
             }
             | (params_dict.get("time_range") or {}),
+            method="call",
+        ),
+        "groupers": Node(
+            async_task=set_groupers.validate()
+            .set_task_instance_id("groupers")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial=(params_dict.get("groupers") or {}),
             method="call",
         ),
         "roi": Node(
@@ -99,8 +148,35 @@ def main(params: Params):
             .set_task_instance_id("roi")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial=(params_dict.get("roi") or {}),
+            method="call",
+        ),
+        "split_roi_groups": Node(
+            async_task=split_groups.validate()
+            .set_task_instance_id("split_roi_groups")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("roi"),
+                "groupers": DependsOn("groupers"),
+            }
+            | (params_dict.get("split_roi_groups") or {}),
             method="call",
         ),
         "forest_cover_trends": Node(
@@ -108,52 +184,88 @@ def main(params: Params):
             .set_task_instance_id("forest_cover_trends")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial={
                 "client": DependsOn("gee_project_name"),
-                "aoi": DependsOn("roi"),
             }
             | (params_dict.get("forest_cover_trends") or {}),
-            method="call",
+            method="mapvalues",
+            kwargs={
+                "argnames": ["aoi"],
+                "argvalues": DependsOn("split_roi_groups"),
+            },
         ),
         "gamm_model": Node(
             async_task=fit_gamm_model.validate()
             .set_task_instance_id("gamm_model")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial={
-                "dataframe": DependsOn("forest_cover_trends"),
                 "time_column": "year",
                 "value_column": "survival_area",
                 "alpha": None,
-                "metric": "aic",
-                "optimize_alpha": True,
                 "lower_bound": None,
                 "upper_bound": None,
+                "optimize_alpha": True,
             }
             | (params_dict.get("gamm_model") or {}),
-            method="call",
+            method="mapvalues",
+            kwargs={
+                "argnames": ["dataframe"],
+                "argvalues": DependsOn("forest_cover_trends"),
+            },
         ),
         "trend_predictions": Node(
             async_task=predict_gamm_trends.validate()
             .set_task_instance_id("trend_predictions")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial={
-                "model_params": DependsOn("gamm_model"),
                 "time_values": None,
                 "include_ci": True,
             }
             | (params_dict.get("trend_predictions") or {}),
-            method="call",
+            method="mapvalues",
+            kwargs={
+                "argnames": ["model_params"],
+                "argvalues": DependsOn("gamm_model"),
+            },
         ),
-        "forest_conver_chart": Node(
+        "forest_cover_chart": Node(
             async_task=draw_historic_timeseries.validate()
-            .set_task_instance_id("forest_conver_chart")
+            .set_task_instance_id("forest_cover_chart")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial={
                 "dataframe": DependsOn("trend_predictions"),
@@ -183,21 +295,36 @@ def main(params: Params):
                 "historic_mean_style": None,
                 "current_value_style": None,
             }
-            | (params_dict.get("forest_conver_chart") or {}),
-            method="call",
+            | (params_dict.get("forest_cover_chart") or {}),
+            method="mapvalues",
+            kwargs={
+                "argnames": ["dataframe"],
+                "argvalues": DependsOn("trend_predictions"),
+            },
         ),
         "persist_forest_cover": Node(
             async_task=persist_text.validate()
             .set_task_instance_id("persist_forest_cover")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial={
                 "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-                "text": DependsOn("forest_conver_chart"),
+                "text": DependsOn("forest_cover_chart"),
             }
             | (params_dict.get("persist_forest_cover") or {}),
-            method="call",
+            method="mapvalues",
+            kwargs={
+                "argnames": ["text"],
+                "argvalues": DependsOn("forest_cover_chart"),
+            },
         ),
         "forest_cover_widget": Node(
             async_task=create_plot_widget_single_view.validate()
@@ -213,9 +340,30 @@ def main(params: Params):
             .set_executor("lithops"),
             partial={
                 "title": "Forest Cover Trend Chart",
-                "data": DependsOn("persist_forest_cover"),
             }
             | (params_dict.get("forest_cover_widget") or {}),
+            method="map",
+            kwargs={
+                "argnames": ["view", "data"],
+                "argvalues": DependsOn("persist_forest_cover"),
+            },
+        ),
+        "grouped_forest_cover": Node(
+            async_task=merge_widget_views.validate()
+            .set_task_instance_id("grouped_forest_cover")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    never,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "widgets": DependsOn("forest_cover_widget"),
+            }
+            | (params_dict.get("grouped_forest_cover") or {}),
             method="call",
         ),
         "gamm_dashboard": Node(
@@ -223,13 +371,21 @@ def main(params: Params):
             .set_task_instance_id("gamm_dashboard")
             .handle_errors()
             .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
             .set_executor("lithops"),
             partial={
                 "details": DependsOn("workflow_details"),
                 "time_range": DependsOn("time_range"),
                 "widgets": [
-                    DependsOn("forest_cover_widget"),
+                    DependsOn("grouped_forest_cover"),
                 ],
+                "groupers": DependsOn("groupers"),
             }
             | (params_dict.get("gamm_dashboard") or {}),
             method="call",
