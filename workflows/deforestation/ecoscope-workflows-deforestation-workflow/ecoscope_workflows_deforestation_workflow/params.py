@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, confloat, constr
 
 
 class WorkflowDetails(BaseModel):
@@ -31,6 +31,196 @@ class ForestCoverTrends(BaseModel):
     )
     max_pixels: Optional[float] = Field(
         1000000000.0, description="Maximum pixels for reduction", title="Max Pixels"
+    )
+    image: Optional[str] = Field(
+        "UMD/hansen/global_forest_change_2023_v1_11",
+        description="Google Earth Engine image name.",
+        title="Image",
+    )
+    end_year: Optional[int] = Field(
+        None,
+        description="End year for the trend analysis (e.g. 2023). This must be consistent with the version of the Hansen image selected (e.g. the 2023_v1_11 image covers up to the end of 2023). Note that the Hansen dataset baseline starting point is always the year 2000.",
+        title="End Year",
+    )
+
+
+class ForestLayers(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    tree_cover_threshold: Optional[float] = Field(60.0, title="Tree Cover Threshold")
+    image: Optional[str] = Field(
+        "UMD/hansen/global_forest_change_2023_v1_11", title="Image"
+    )
+    end_year: Optional[int] = Field(None, title="End Year")
+    opacity: Optional[float] = Field(1.0, title="Opacity")
+
+
+class Url(str, Enum):
+    https___tile_openstreetmap_org__z___x___y__png = (
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    )
+
+
+class BaseMaps(BaseModel):
+    url: Literal["https://tile.openstreetmap.org/{z}/{x}/{y}.png"] = Field(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png", title="Preset Layer URL"
+    )
+    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        1,
+        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
+        title="Layer Opacity",
+    )
+
+
+class Url1(str, Enum):
+    https___server_arcgisonline_com_ArcGIS_rest_services_World_Street_Map_MapServer_tile__z___y___x_ = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+
+
+class BaseMaps1(BaseModel):
+    url: Literal[
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+    ] = Field(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        title="Preset Layer URL",
+    )
+    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        1,
+        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
+        title="Layer Opacity",
+    )
+
+
+class Url2(str, Enum):
+    https___server_arcgisonline_com_ArcGIS_rest_services_World_Imagery_MapServer_tile__z___y___x_ = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+
+
+class BaseMaps2(BaseModel):
+    url: Literal[
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+    ] = Field(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        title="Preset Layer URL",
+    )
+    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        1,
+        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
+        title="Layer Opacity",
+    )
+
+
+class Url3(str, Enum):
+    https___server_arcgisonline_com_ArcGIS_rest_services_World_Topo_Map_MapServer_tile__z___y___x_ = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+
+
+class BaseMaps3(BaseModel):
+    url: Literal[
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+    ] = Field(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+        title="Preset Layer URL",
+    )
+    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        1,
+        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
+        title="Layer Opacity",
+    )
+
+
+class Url4(str, Enum):
+    https___tiles_arcgis_com_tiles_POUcpLYXNckpLjnY_arcgis_rest_services_landDx_basemap_tiles_mapservice_MapServer_tile__z___y___x_ = "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}"
+
+
+class BaseMaps4(BaseModel):
+    url: Literal[
+        "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}"
+    ] = Field(
+        "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}",
+        title="Preset Layer URL",
+    )
+    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        1,
+        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
+        title="Layer Opacity",
+    )
+
+
+class Url5(str, Enum):
+    https___server_arcgisonline_com_arcgis_rest_services_Elevation_World_Hillshade_MapServer_tile__z___y___x_ = "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
+
+
+class BaseMaps5(BaseModel):
+    url: Literal[
+        "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
+    ] = Field(
+        "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
+        title="Preset Layer URL",
+    )
+    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        1,
+        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
+        title="Layer Opacity",
+    )
+
+
+class BaseMaps6(BaseModel):
+    url: Optional[
+        constr(
+            pattern=r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}([-a-zA-Z0-9()@:%_\+.~#?&//=\{\}]*)"
+        )
+    ] = Field(
+        "https://example.tiles.com/{z}/{x}/{y}.png",
+        description="The URL of a publicly accessible tiled raster service.",
+        title="Custom Layer URL",
+    )
+    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        1,
+        description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
+        title="Custom Layer Opacity",
+    )
+    max_zoom: Optional[int] = Field(
+        20,
+        description="Set the maximum zoom level to fetch tiles for.",
+        title="Custom Layer Max Zoom",
+    )
+    min_zoom: Optional[int] = Field(
+        0,
+        description="Set the minimum zoom level to fetch tiles for.",
+        title="Custom Layer Min Zoom",
+    )
+
+
+class BaseMapDefs(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    base_maps: Optional[
+        List[
+            Union[
+                BaseMaps,
+                BaseMaps1,
+                BaseMaps2,
+                BaseMaps3,
+                BaseMaps4,
+                BaseMaps5,
+                BaseMaps6,
+            ]
+        ]
+    ] = Field(
+        [
+            {
+                "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+                "opacity": 1,
+                "max_zoom": 20,
+            },
+            {
+                "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                "opacity": 0.5,
+                "max_zoom": 20,
+            },
+        ],
+        description="Select tile layers to use as base layers in map outputs. The first layer in the list will be the bottommost layer displayed.",
+        title=" ",
     )
 
 
@@ -127,6 +317,26 @@ class RemoteFileSpatialFeatures(BaseModel):
     )
 
 
+class Placement(str, Enum):
+    top_left = "top-left"
+    top_right = "top-right"
+    bottom_left = "bottom-left"
+    bottom_right = "bottom-right"
+    fill = "fill"
+
+
+class LegendStyle(BaseModel):
+    placement: Optional[Placement] = Field("bottom-right", title="Placement")
+
+
+class ViewState(BaseModel):
+    longitude: Optional[confloat(ge=-180.0, le=180.0)] = Field(0, title="Longitude")
+    latitude: Optional[confloat(ge=-90.0, le=90.0)] = Field(0, title="Latitude")
+    zoom: Optional[confloat(ge=0.0, le=20.0)] = Field(0, title="Zoom")
+    pitch: Optional[confloat(ge=0.0, le=60.0)] = Field(0, title="Pitch")
+    bearing: Optional[confloat(le=360.0)] = Field(0, title="Bearing")
+
+
 class GeeProjectName(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -158,6 +368,34 @@ class Roi(BaseModel):
     ] = Field(..., title="Spatial Feature Data Source")
 
 
+class ForestMap(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    static: Optional[bool] = Field(
+        False, description="Set to true to disable map pan/zoom.", title="Static"
+    )
+    legend_style: Optional[LegendStyle] = Field(
+        default_factory=lambda: LegendStyle.model_validate(
+            {"placement": "bottom-right"}
+        ),
+        description="Additional arguments for configuring the legend.",
+        title="Legend Style",
+    )
+    max_zoom: Optional[int] = Field(
+        20,
+        description="            The maximum zoom level allowed by the map.\n            This setting will be overridden if provided\n            tile layers max zoom levels are lower than this value.\n            ",
+        title="Max Zoom",
+    )
+    view_state: Optional[ViewState] = Field(
+        default_factory=lambda: ViewState.model_validate(
+            {"longitude": 0, "latitude": 0, "zoom": 0, "pitch": 0, "bearing": 0}
+        ),
+        description="Manually set the view state of the map.",
+        title="View State",
+    )
+
+
 class Params(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -175,4 +413,9 @@ class Params(BaseModel):
     forest_cover_trends: Optional[ForestCoverTrends] = Field(
         None, title="Extract Forest Cover Trends"
     )
+    forest_layers: Optional[ForestLayers] = Field(
+        None, title="Create Forest Map Layers"
+    )
+    base_map_defs: Optional[BaseMapDefs] = Field(None, title="Set Base Maps")
+    forest_map: Optional[ForestMap] = Field(None, title="Create Forest Change Map")
     gamm_model: Optional[GammModel] = Field(None, title="Fit GAMM Model")

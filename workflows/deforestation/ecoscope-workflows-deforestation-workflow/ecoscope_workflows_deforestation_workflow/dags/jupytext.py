@@ -16,10 +16,14 @@ from ecoscope_workflows_core.tasks.config import (
     set_workflow_details as set_workflow_details,
 )
 from ecoscope_workflows_core.tasks.filter import set_time_range as set_time_range
+from ecoscope_workflows_core.tasks.groupby import groupbykey as groupbykey
 from ecoscope_workflows_core.tasks.groupby import set_groupers as set_groupers
 from ecoscope_workflows_core.tasks.groupby import split_groups as split_groups
 from ecoscope_workflows_core.tasks.io import persist_text as persist_text
 from ecoscope_workflows_core.tasks.io import set_gee_connection as set_gee_connection
+from ecoscope_workflows_core.tasks.results import (
+    create_map_widget_single_view as create_map_widget_single_view,
+)
 from ecoscope_workflows_core.tasks.results import (
     create_plot_widget_single_view as create_plot_widget_single_view,
 )
@@ -32,11 +36,24 @@ from ecoscope_workflows_core.tasks.skip import (
 )
 from ecoscope_workflows_core.tasks.skip import any_is_empty_df as any_is_empty_df
 from ecoscope_workflows_core.tasks.skip import never as never
+from ecoscope_workflows_ext_custom.tasks.results import (
+    create_polygon_layer_pydeck as create_polygon_layer_pydeck,
+)
+from ecoscope_workflows_ext_custom.tasks.results import draw_map as draw_map
+from ecoscope_workflows_ext_custom.tasks.results import (
+    merge_tile_layers as merge_tile_layers,
+)
+from ecoscope_workflows_ext_custom.tasks.results import (
+    set_base_maps_pydeck as set_base_maps_pydeck,
+)
 from ecoscope_workflows_ext_ecoscope.tasks.io import (
     load_spatial_features_group as load_spatial_features_group,
 )
 from ecoscope_workflows_ext_ecoscope.tasks.results import (
     draw_historic_timeseries as draw_historic_timeseries,
+)
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    create_forest_layers as create_forest_layers,
 )
 from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
     extract_forest_cover_trends as extract_forest_cover_trends,
@@ -247,6 +264,8 @@ forest_cover_trends_params = dict(
     tree_cover_threshold=...,
     scale=...,
     max_pixels=...,
+    image=...,
+    end_year=...,
 )
 
 # %%
@@ -266,6 +285,292 @@ forest_cover_trends = (
     )
     .partial(client=gee_project_name, **forest_cover_trends_params)
     .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
+)
+
+
+# %% [markdown]
+# ## Create Forest Map Layers
+
+# %%
+# parameters
+
+forest_layers_params = dict(
+    tree_cover_threshold=...,
+    image=...,
+    end_year=...,
+    opacity=...,
+)
+
+# %%
+# call the task
+
+
+forest_layers = (
+    create_forest_layers.set_task_instance_id("forest_layers")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(client=gee_project_name, **forest_layers_params)
+    .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
+)
+
+
+# %% [markdown]
+# ## Set Base Maps
+
+# %%
+# parameters
+
+base_map_defs_params = dict(
+    base_maps=...,
+)
+
+# %%
+# call the task
+
+
+base_map_defs = (
+    set_base_maps_pydeck.set_task_instance_id("base_map_defs")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(**base_map_defs_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ## Merge Base Maps and Forest Layers
+
+# %%
+# parameters
+
+merged_forest_layers_params = dict()
+
+# %%
+# call the task
+
+
+merged_forest_layers = (
+    merge_tile_layers.set_task_instance_id("merged_forest_layers")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(base_layers=base_map_defs, **merged_forest_layers_params)
+    .mapvalues(argnames=["overlay"], argvalues=forest_layers)
+)
+
+
+# %% [markdown]
+# ## Create ROI Map Layer
+
+# %%
+# parameters
+
+roi_layer_params = dict()
+
+# %%
+# call the task
+
+
+roi_layer = (
+    create_polygon_layer_pydeck.set_task_instance_id("roi_layer")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        layer_style={
+            "filled": False,
+            "stroked": True,
+            "get_line_color": [127, 201, 127, 255],
+            "get_line_width": 1,
+        },
+        legend={
+            "title": "ROI Boundary",
+            "values": [{"label": "ROI Boundary", "color": "rgba(127, 201, 127, 1)"}],
+        },
+        **roi_layer_params,
+    )
+    .mapvalues(argnames=["geodataframe"], argvalues=split_roi_groups)
+)
+
+
+# %% [markdown]
+# ## Combine Map Layers
+
+# %%
+# parameters
+
+combined_forest_map_layers_params = dict()
+
+# %%
+# call the task
+
+
+combined_forest_map_layers = (
+    groupbykey.set_task_instance_id("combined_forest_map_layers")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        iterables=[merged_forest_layers, roi_layer], **combined_forest_map_layers_params
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Create Forest Change Map
+
+# %%
+# parameters
+
+forest_map_params = dict(
+    static=...,
+    legend_style=...,
+    max_zoom=...,
+    view_state=...,
+    widget_id=...,
+)
+
+# %%
+# call the task
+
+
+forest_map = (
+    draw_map.set_task_instance_id("forest_map")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(title="Forest Change Map", **forest_map_params)
+    .mapvalues(
+        argnames=["tile_layers", "geo_layers"], argvalues=combined_forest_map_layers
+    )
+)
+
+
+# %% [markdown]
+# ## Persist Forest Change Map as Text
+
+# %%
+# parameters
+
+persist_forest_map_params = dict(
+    filename=...,
+)
+
+# %%
+# call the task
+
+
+persist_forest_map = (
+    persist_text.set_task_instance_id("persist_forest_map")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+        filename_suffix="map",
+        text=forest_map,
+        **persist_forest_map_params,
+    )
+    .mapvalues(argnames=["text"], argvalues=forest_map)
+)
+
+
+# %% [markdown]
+# ## Create Forest Change Map Widget
+
+# %%
+# parameters
+
+forest_map_widget_params = dict()
+
+# %%
+# call the task
+
+
+forest_map_widget = (
+    create_map_widget_single_view.set_task_instance_id("forest_map_widget")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            never,
+        ],
+        unpack_depth=1,
+    )
+    .partial(title="Forest Change Map", **forest_map_widget_params)
+    .map(argnames=["view", "data"], argvalues=persist_forest_map)
+)
+
+
+# %% [markdown]
+# ## Merge Forest Map Widget Views
+
+# %%
+# parameters
+
+grouped_forest_map_params = dict()
+
+# %%
+# call the task
+
+
+grouped_forest_map = (
+    merge_widget_views.set_task_instance_id("grouped_forest_map")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            never,
+        ],
+        unpack_depth=1,
+    )
+    .partial(widgets=forest_map_widget, **grouped_forest_map_params)
+    .call()
 )
 
 
@@ -504,7 +809,7 @@ gamm_dashboard = (
     .partial(
         details=workflow_details,
         time_range=time_range,
-        widgets=[grouped_forest_cover],
+        widgets=[grouped_forest_map, grouped_forest_cover],
         groupers=groupers,
         **gamm_dashboard_params,
     )

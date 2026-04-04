@@ -10,7 +10,7 @@ requirements:
     channel: https://repo.prefix.dev/ecoscope-workflows/
 
   - name: ecoscope-workflows-ext-custom
-    version: "0.0.37"
+    version: "0.0.41"
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
 
   - name: ecoscope-workflows-ext-gamm-trend-analysis
@@ -89,9 +89,100 @@ workflow:
     task: extract_forest_cover_trends
     partial:
       client: ${{ workflow.gee_project_name.return }}
+      time_range: ${{ workflow.time_range.return }}
     mapvalues:
       argnames: aoi
       argvalues: ${{ workflow.split_roi_groups.return}}
+
+  - name: Create Forest Map Layers
+    id: forest_layers
+    task: create_forest_layers
+    partial:
+      client: ${{ workflow.gee_project_name.return }}
+      time_range: ${{ workflow.time_range.return }}
+    mapvalues:
+      argnames: aoi
+      argvalues: ${{ workflow.split_roi_groups.return}}
+
+  - name: Set Base Maps
+    id: base_map_defs
+    task: set_base_maps_pydeck
+
+  - name: Merge Base Maps and Forest Layers
+    id: merged_forest_layers
+    task: merge_tile_layers
+    partial:
+      base_layers: ${{ workflow.base_map_defs.return }}
+    mapvalues:
+      argnames: overlay
+      argvalues: ${{ workflow.forest_layers.return }}
+
+  - name: Create ROI Map Layer
+    id: roi_layer
+    task: create_polygon_layer_pydeck
+    partial:
+      layer_style:
+        filled: false
+        stroked: true
+        get_line_color: [127, 201, 127, 255]
+        get_line_width: 1
+      legend:
+        title: ROI Boundary
+        values:
+          - label: ROI Boundary
+            color: rgba(127, 201, 127, 1)
+    mapvalues:
+      argnames: geodataframe
+      argvalues: ${{ workflow.split_roi_groups.return }}
+
+  - name: Combine Map Layers
+    id: combined_forest_map_layers
+    task: groupbykey
+    partial:
+      iterables:
+        - ${{ workflow.merged_forest_layers.return }}
+        - ${{ workflow.roi_layer.return }}
+
+  - name: Create Forest Change Map
+    id: forest_map
+    task: draw_map
+    partial:
+      title: Forest Change Map
+    mapvalues:
+      argnames: [tile_layers, geo_layers]
+      argvalues: ${{ workflow.combined_forest_map_layers.return }}
+
+  - name: Persist Forest Change Map as Text
+    id: persist_forest_map
+    task: persist_text
+    partial:
+      root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+      filename_suffix: map
+      text: ${{ workflow.forest_map.return }}
+    mapvalues:
+      argnames: text
+      argvalues: ${{ workflow.forest_map.return }}
+
+  - name: Create Forest Change Map Widget
+    id: forest_map_widget
+    task: create_map_widget_single_view
+    skipif:
+      conditions:
+        - never
+    partial:
+      title: "Forest Change Map"
+    map:
+      argnames: [view, data]
+      argvalues: ${{ workflow.persist_forest_map.return }}
+
+  - name: Merge Forest Map Widget Views
+    id: grouped_forest_map
+    task: merge_widget_views
+    skipif:
+      conditions:
+        - never
+    partial:
+      widgets: ${{ workflow.forest_map_widget.return }}
 
   - name: Fit GAMM Model
     id: gamm_model
@@ -184,5 +275,6 @@ workflow:
       details: ${{ workflow.workflow_details.return}}
       time_range: ${{ workflow.time_range.return}}
       widgets:
+        - ${{ workflow.grouped_forest_map.return }}
         - ${{ workflow.grouped_forest_cover.return }}
       groupers: ${{ workflow.groupers.return }}

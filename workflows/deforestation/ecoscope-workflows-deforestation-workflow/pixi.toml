@@ -28,7 +28,7 @@ version = "0.22.16.*"
 channel = "https://repo.prefix.dev/ecoscope-workflows/"
 
 [dependencies.ecoscope-workflows-ext-custom]
-version = "==0.0.37"
+version = "==0.0.41"
 channel = "https://repo.prefix.dev/ecoscope-workflows-custom/"
 
 [dependencies.ecoscope-workflows-ext-gamm-trend-analysis]

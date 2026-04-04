@@ -28,8 +28,12 @@ load_spatial_features_group = create_task_magicmock(  # 🧪
     anchor="ecoscope_workflows_ext_ecoscope.tasks.io",  # 🧪
     func_name="load_spatial_features_group",  # 🧪
 )  # 🧪
+from ecoscope_workflows_core.tasks.groupby import groupbykey as groupbykey
 from ecoscope_workflows_core.tasks.groupby import split_groups as split_groups
 from ecoscope_workflows_core.tasks.io import persist_text as persist_text
+from ecoscope_workflows_core.tasks.results import (
+    create_map_widget_single_view as create_map_widget_single_view,
+)
 from ecoscope_workflows_core.tasks.results import (
     create_plot_widget_single_view as create_plot_widget_single_view,
 )
@@ -38,8 +42,21 @@ from ecoscope_workflows_core.tasks.results import (
     merge_widget_views as merge_widget_views,
 )
 from ecoscope_workflows_core.tasks.skip import never as never
+from ecoscope_workflows_ext_custom.tasks.results import (
+    create_polygon_layer_pydeck as create_polygon_layer_pydeck,
+)
+from ecoscope_workflows_ext_custom.tasks.results import draw_map as draw_map
+from ecoscope_workflows_ext_custom.tasks.results import (
+    merge_tile_layers as merge_tile_layers,
+)
+from ecoscope_workflows_ext_custom.tasks.results import (
+    set_base_maps_pydeck as set_base_maps_pydeck,
+)
 from ecoscope_workflows_ext_ecoscope.tasks.results import (
     draw_historic_timeseries as draw_historic_timeseries,
+)
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    create_forest_layers as create_forest_layers,
 )
 from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
     extract_forest_cover_trends as extract_forest_cover_trends,
@@ -67,6 +84,15 @@ def main(params: Params):
         "roi": [],
         "split_roi_groups": ["roi", "groupers"],
         "forest_cover_trends": ["gee_project_name", "split_roi_groups"],
+        "forest_layers": ["gee_project_name", "split_roi_groups"],
+        "base_map_defs": [],
+        "merged_forest_layers": ["base_map_defs", "forest_layers"],
+        "roi_layer": ["split_roi_groups"],
+        "combined_forest_map_layers": ["merged_forest_layers", "roi_layer"],
+        "forest_map": ["combined_forest_map_layers"],
+        "persist_forest_map": ["forest_map", "forest_map"],
+        "forest_map_widget": ["persist_forest_map"],
+        "grouped_forest_map": ["forest_map_widget"],
         "gamm_model": ["forest_cover_trends"],
         "trend_predictions": ["gamm_model"],
         "forest_cover_chart": ["trend_predictions", "trend_predictions"],
@@ -76,6 +102,7 @@ def main(params: Params):
         "gamm_dashboard": [
             "workflow_details",
             "time_range",
+            "grouped_forest_map",
             "grouped_forest_cover",
             "groupers",
         ],
@@ -215,6 +242,220 @@ def main(params: Params):
                 "argnames": ["aoi"],
                 "argvalues": DependsOn("split_roi_groups"),
             },
+        ),
+        "forest_layers": Node(
+            async_task=create_forest_layers.validate()
+            .set_task_instance_id("forest_layers")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "client": DependsOn("gee_project_name"),
+            }
+            | (params_dict.get("forest_layers") or {}),
+            method="mapvalues",
+            kwargs={
+                "argnames": ["aoi"],
+                "argvalues": DependsOn("split_roi_groups"),
+            },
+        ),
+        "base_map_defs": Node(
+            async_task=set_base_maps_pydeck.validate()
+            .set_task_instance_id("base_map_defs")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial=(params_dict.get("base_map_defs") or {}),
+            method="call",
+        ),
+        "merged_forest_layers": Node(
+            async_task=merge_tile_layers.validate()
+            .set_task_instance_id("merged_forest_layers")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "base_layers": DependsOn("base_map_defs"),
+            }
+            | (params_dict.get("merged_forest_layers") or {}),
+            method="mapvalues",
+            kwargs={
+                "argnames": ["overlay"],
+                "argvalues": DependsOn("forest_layers"),
+            },
+        ),
+        "roi_layer": Node(
+            async_task=create_polygon_layer_pydeck.validate()
+            .set_task_instance_id("roi_layer")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "layer_style": {
+                    "filled": False,
+                    "stroked": True,
+                    "get_line_color": [
+                        127,
+                        201,
+                        127,
+                        255,
+                    ],
+                    "get_line_width": 1,
+                },
+                "legend": {
+                    "title": "ROI Boundary",
+                    "values": [
+                        {
+                            "label": "ROI Boundary",
+                            "color": "rgba(127, 201, 127, 1)",
+                        },
+                    ],
+                },
+            }
+            | (params_dict.get("roi_layer") or {}),
+            method="mapvalues",
+            kwargs={
+                "argnames": ["geodataframe"],
+                "argvalues": DependsOn("split_roi_groups"),
+            },
+        ),
+        "combined_forest_map_layers": Node(
+            async_task=groupbykey.validate()
+            .set_task_instance_id("combined_forest_map_layers")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "iterables": [
+                    DependsOn("merged_forest_layers"),
+                    DependsOn("roi_layer"),
+                ],
+            }
+            | (params_dict.get("combined_forest_map_layers") or {}),
+            method="call",
+        ),
+        "forest_map": Node(
+            async_task=draw_map.validate()
+            .set_task_instance_id("forest_map")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "title": "Forest Change Map",
+            }
+            | (params_dict.get("forest_map") or {}),
+            method="mapvalues",
+            kwargs={
+                "argnames": ["tile_layers", "geo_layers"],
+                "argvalues": DependsOn("combined_forest_map_layers"),
+            },
+        ),
+        "persist_forest_map": Node(
+            async_task=persist_text.validate()
+            .set_task_instance_id("persist_forest_map")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+                "filename_suffix": "map",
+                "text": DependsOn("forest_map"),
+            }
+            | (params_dict.get("persist_forest_map") or {}),
+            method="mapvalues",
+            kwargs={
+                "argnames": ["text"],
+                "argvalues": DependsOn("forest_map"),
+            },
+        ),
+        "forest_map_widget": Node(
+            async_task=create_map_widget_single_view.validate()
+            .set_task_instance_id("forest_map_widget")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    never,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "title": "Forest Change Map",
+            }
+            | (params_dict.get("forest_map_widget") or {}),
+            method="map",
+            kwargs={
+                "argnames": ["view", "data"],
+                "argvalues": DependsOn("persist_forest_map"),
+            },
+        ),
+        "grouped_forest_map": Node(
+            async_task=merge_widget_views.validate()
+            .set_task_instance_id("grouped_forest_map")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    never,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "widgets": DependsOn("forest_map_widget"),
+            }
+            | (params_dict.get("grouped_forest_map") or {}),
+            method="call",
         ),
         "gamm_model": Node(
             async_task=fit_gamm_model.validate()
@@ -397,6 +638,7 @@ def main(params: Params):
                 "details": DependsOn("workflow_details"),
                 "time_range": DependsOn("time_range"),
                 "widgets": [
+                    DependsOn("grouped_forest_map"),
                     DependsOn("grouped_forest_cover"),
                 ],
                 "groupers": DependsOn("groupers"),
