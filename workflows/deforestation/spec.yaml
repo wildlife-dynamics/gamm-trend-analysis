@@ -38,6 +38,16 @@ rjsf-overrides:
         { "$ref": "#/$defs/LocalFileSpatialFeatures" },
         { "$ref": "#/$defs/RemoteFileSpatialFeatures" },
       ]
+
+    hansen_image.properties.var.default: "UMD/hansen/global_forest_change_2024_v1_12"
+    hansen_image.properties.var.description: "Hansen Global Forest Change dataset image name."
+
+    time_range.properties.since.default: "2000-01-01T00:00:00.000Z"
+    time_range.properties.since.description: >-
+      Start year of the analysis. The Hansen dataset baseline always starts from 2000.
+    time_range.properties.until.description: >-
+      End year of the analysis. Depends on the Hansen dataset selected
+      (e.g. UMD/hansen/global_forest_change_2024_v1_12 covers up to 2024).
 task-instance-defaults:
   skipif:
     conditions:
@@ -54,19 +64,21 @@ workflow:
     task: set_gee_connection
 
     # The time range is set based on the temporal coverage of the
-    # UMD/hansen/global_forest_change_2023_v1_11 dataset (2000–2023).
+    # UMD/hansen/global_forest_change_2024_v1_12 dataset (2000–2024).
   - name: Time Range
     id: time_range
     task: set_time_range
     partial:
-      time_format: "%d %b %Y %H:%M:%S %Z"
-      timezone:
-        label: UTC
-        tzCode: UTC
-        name: Universal Coordinated Time
-        utc: +00:00
-      since: "2000-01-01T00:00:00.000Z"
-      until: "2023-12-31T23:59:59.000Z"
+      time_format: "%Y"
+      # timezone:
+      #   label: UTC
+      #   tzCode: UTC
+      #   name: Universal Coordinated Time
+      #   utc: +00:00
+
+  - name: Hansen Dataset
+    id: hansen_image
+    task: set_string_var
 
   - name: Set Groupers
     id: groupers
@@ -90,6 +102,7 @@ workflow:
     partial:
       client: ${{ workflow.gee_project_name.return }}
       time_range: ${{ workflow.time_range.return }}
+      image: ${{ workflow.hansen_image.return }}
     mapvalues:
       argnames: aoi
       argvalues: ${{ workflow.split_roi_groups.return}}
@@ -100,6 +113,7 @@ workflow:
     partial:
       client: ${{ workflow.gee_project_name.return }}
       time_range: ${{ workflow.time_range.return }}
+      image: ${{ workflow.hansen_image.return }}
     mapvalues:
       argnames: aoi
       argvalues: ${{ workflow.split_roi_groups.return}}

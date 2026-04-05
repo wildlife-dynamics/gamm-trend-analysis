@@ -12,6 +12,7 @@
 
 import os
 
+from ecoscope_workflows_core.tasks.config import set_string_var as set_string_var
 from ecoscope_workflows_core.tasks.config import (
     set_workflow_details as set_workflow_details,
 )
@@ -133,7 +134,10 @@ gee_project_name = (
 # %%
 # parameters
 
-time_range_params = dict()
+time_range_params = dict(
+    since=...,
+    until=...,
+)
 
 # %%
 # call the task
@@ -151,17 +155,45 @@ time_range = (
         unpack_depth=1,
     )
     .partial(
-        time_format="%d %b %Y %H:%M:%S %Z",
+        time_format="%Y",
         timezone={
             "label": "UTC",
             "tzCode": "UTC",
             "name": "Universal Coordinated Time",
             "utc": "+00:00",
         },
-        since="2000-01-01T00:00:00.000Z",
-        until="2023-12-31T23:59:59.000Z",
         **time_range_params,
     )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Hansen Dataset
+
+# %%
+# parameters
+
+hansen_image_params = dict(
+    var=...,
+)
+
+# %%
+# call the task
+
+
+hansen_image = (
+    set_string_var.set_task_instance_id("hansen_image")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(**hansen_image_params)
     .call()
 )
 
@@ -264,8 +296,6 @@ forest_cover_trends_params = dict(
     tree_cover_threshold=...,
     scale=...,
     max_pixels=...,
-    image=...,
-    end_year=...,
 )
 
 # %%
@@ -283,7 +313,12 @@ forest_cover_trends = (
         ],
         unpack_depth=1,
     )
-    .partial(client=gee_project_name, **forest_cover_trends_params)
+    .partial(
+        client=gee_project_name,
+        time_range=time_range,
+        image=hansen_image,
+        **forest_cover_trends_params,
+    )
     .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
 )
 
@@ -296,8 +331,6 @@ forest_cover_trends = (
 
 forest_layers_params = dict(
     tree_cover_threshold=...,
-    image=...,
-    end_year=...,
     opacity=...,
 )
 
@@ -316,7 +349,12 @@ forest_layers = (
         ],
         unpack_depth=1,
     )
-    .partial(client=gee_project_name, **forest_layers_params)
+    .partial(
+        client=gee_project_name,
+        time_range=time_range,
+        image=hansen_image,
+        **forest_layers_params,
+    )
     .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
 )
 

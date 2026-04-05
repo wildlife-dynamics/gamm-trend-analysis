@@ -35,6 +35,47 @@
       "type": "object",
       "title": "Connect to Earth Engine"
     },
+    "time_range": {
+      "additionalProperties": false,
+      "properties": {
+        "since": {
+          "format": "date-time",
+          "title": "Since",
+          "type": "string",
+          "description": "Start year of the analysis. The Hansen dataset baseline always starts from 2000.",
+          "default": "2000-01-01T00:00:00.000Z"
+        },
+        "until": {
+          "format": "date-time",
+          "title": "Until",
+          "type": "string",
+          "description": "End year of the analysis. Depends on the Hansen dataset selected (e.g. UMD/hansen/global_forest_change_2024_v1_12 covers up to 2024)."
+        }
+      },
+      "required": [
+        "since",
+        "until"
+      ],
+      "type": "object",
+      "description": "Choose the period of time to analyze.",
+      "title": "Time Range"
+    },
+    "hansen_image": {
+      "additionalProperties": false,
+      "properties": {
+        "var": {
+          "title": "",
+          "type": "string",
+          "default": "UMD/hansen/global_forest_change_2024_v1_12",
+          "description": "Hansen Global Forest Change dataset image name."
+        }
+      },
+      "required": [
+        "var"
+      ],
+      "type": "object",
+      "title": "Hansen Dataset"
+    },
     "groupers": {
       "additionalProperties": false,
       "properties": {
@@ -104,25 +145,6 @@
           "type": "number",
           "description": "Maximum pixels for reduction",
           "ecoscope:advanced": true
-        },
-        "image": {
-          "default": "UMD/hansen/global_forest_change_2023_v1_11",
-          "title": "Image",
-          "type": "string",
-          "description": "Google Earth Engine image name."
-        },
-        "end_year": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "End Year",
-          "description": "End year for the trend analysis (e.g. 2023). This must be consistent with the version of the Hansen image selected (e.g. the 2023_v1_11 image covers up to the end of 2023). Note that the Hansen dataset baseline starting point is always the year 2000."
         }
       },
       "required": [],
@@ -136,23 +158,6 @@
           "default": 60.0,
           "title": "Tree Cover Threshold",
           "type": "number"
-        },
-        "image": {
-          "default": "UMD/hansen/global_forest_change_2023_v1_11",
-          "title": "Image",
-          "type": "string"
-        },
-        "end_year": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "End Year"
         },
         "opacity": {
           "default": 1.0,
@@ -718,20 +723,22 @@
         "description"
       ]
     },
+    "time_range": {
+      "ui:order": [
+        "since",
+        "until"
+      ]
+    },
     "forest_cover_trends": {
       "ui:order": [
         "tree_cover_threshold",
         "scale",
-        "max_pixels",
-        "image",
-        "end_year"
+        "max_pixels"
       ]
     },
     "forest_layers": {
       "ui:order": [
         "tree_cover_threshold",
-        "image",
-        "end_year",
         "opacity"
       ]
     },
@@ -754,6 +761,8 @@
     "ui:order": [
       "workflow_details",
       "gee_project_name",
+      "time_range",
+      "hansen_image",
       "groupers",
       "roi",
       "forest_cover_trends",

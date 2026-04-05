@@ -2,6 +2,7 @@
 import json
 import os
 
+from ecoscope_workflows_core.tasks.config import set_string_var as set_string_var
 from ecoscope_workflows_core.tasks.config import (
     set_workflow_details as set_workflow_details,
 )
@@ -106,17 +107,31 @@ def main(params: Params):
             unpack_depth=1,
         )
         .partial(
-            time_format="%d %b %Y %H:%M:%S %Z",
+            time_format="%Y",
             timezone={
                 "label": "UTC",
                 "tzCode": "UTC",
                 "name": "Universal Coordinated Time",
                 "utc": "+00:00",
             },
-            since="2000-01-01T00:00:00.000Z",
-            until="2023-12-31T23:59:59.000Z",
             **(params_dict.get("time_range") or {}),
         )
+        .call()
+    )
+
+    hansen_image = (
+        set_string_var.validate()
+        .set_task_instance_id("hansen_image")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(**(params_dict.get("hansen_image") or {}))
         .call()
     )
 
@@ -183,7 +198,10 @@ def main(params: Params):
             unpack_depth=1,
         )
         .partial(
-            client=gee_project_name, **(params_dict.get("forest_cover_trends") or {})
+            client=gee_project_name,
+            time_range=time_range,
+            image=hansen_image,
+            **(params_dict.get("forest_cover_trends") or {}),
         )
         .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
     )
@@ -200,7 +218,12 @@ def main(params: Params):
             ],
             unpack_depth=1,
         )
-        .partial(client=gee_project_name, **(params_dict.get("forest_layers") or {}))
+        .partial(
+            client=gee_project_name,
+            time_range=time_range,
+            image=hansen_image,
+            **(params_dict.get("forest_layers") or {}),
+        )
         .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
     )
 

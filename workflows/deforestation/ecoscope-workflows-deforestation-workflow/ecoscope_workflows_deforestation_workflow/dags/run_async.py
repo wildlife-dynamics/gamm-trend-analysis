@@ -3,6 +3,7 @@ import json
 import os
 
 from ecoscope_workflows_core.graph import DependsOn, Graph, Node
+from ecoscope_workflows_core.tasks.config import set_string_var as set_string_var
 from ecoscope_workflows_core.tasks.config import (
     set_workflow_details as set_workflow_details,
 )
@@ -66,11 +67,22 @@ def main(params: Params):
         "workflow_details": [],
         "gee_project_name": [],
         "time_range": [],
+        "hansen_image": [],
         "groupers": [],
         "roi": [],
         "split_roi_groups": ["roi", "groupers"],
-        "forest_cover_trends": ["gee_project_name", "split_roi_groups"],
-        "forest_layers": ["gee_project_name", "split_roi_groups"],
+        "forest_cover_trends": [
+            "gee_project_name",
+            "time_range",
+            "hansen_image",
+            "split_roi_groups",
+        ],
+        "forest_layers": [
+            "gee_project_name",
+            "time_range",
+            "hansen_image",
+            "split_roi_groups",
+        ],
         "base_map_defs": [],
         "merged_forest_layers": ["base_map_defs", "forest_layers"],
         "roi_layer": ["split_roi_groups"],
@@ -141,17 +153,31 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "time_format": "%d %b %Y %H:%M:%S %Z",
+                "time_format": "%Y",
                 "timezone": {
                     "label": "UTC",
                     "tzCode": "UTC",
                     "name": "Universal Coordinated Time",
                     "utc": "+00:00",
                 },
-                "since": "2000-01-01T00:00:00.000Z",
-                "until": "2023-12-31T23:59:59.000Z",
             }
             | (params_dict.get("time_range") or {}),
+            method="call",
+        ),
+        "hansen_image": Node(
+            async_task=set_string_var.validate()
+            .set_task_instance_id("hansen_image")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial=(params_dict.get("hansen_image") or {}),
             method="call",
         ),
         "groupers": Node(
@@ -221,6 +247,8 @@ def main(params: Params):
             .set_executor("lithops"),
             partial={
                 "client": DependsOn("gee_project_name"),
+                "time_range": DependsOn("time_range"),
+                "image": DependsOn("hansen_image"),
             }
             | (params_dict.get("forest_cover_trends") or {}),
             method="mapvalues",
@@ -244,6 +272,8 @@ def main(params: Params):
             .set_executor("lithops"),
             partial={
                 "client": DependsOn("gee_project_name"),
+                "time_range": DependsOn("time_range"),
+                "image": DependsOn("hansen_image"),
             }
             | (params_dict.get("forest_layers") or {}),
             method="mapvalues",

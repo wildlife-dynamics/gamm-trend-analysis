@@ -4,6 +4,11 @@ workflow_details:
 gee_project_name:
   data_source:
     name: ecoscope_poc
+hansen_image:
+  var: "UMD/hansen/global_forest_change_2024_v1_12"
+time_range:
+  since: "2000-01-01T00:00:00.000Z"
+  until: "2024-12-31T23:59:59.000Z"
 roi:
   config:
     url: "https://www.dropbox.com/s/nvdmidz1o2duyl3/AOIs.gpkg?dl=1"

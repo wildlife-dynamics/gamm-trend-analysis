@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import List, Literal, Optional, Union
 
@@ -15,6 +16,21 @@ class WorkflowDetails(BaseModel):
     )
     name: str = Field(..., title="Workflow Name")
     description: Optional[str] = Field("", title="Workflow Description")
+
+
+class TimeRange(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    since: datetime = Field(..., description="The start time", title="Since")
+    until: datetime = Field(..., description="The end time", title="Until")
+
+
+class HansenImage(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    var: str = Field(..., title="")
 
 
 class ForestCoverTrends(BaseModel):
@@ -32,16 +48,6 @@ class ForestCoverTrends(BaseModel):
     max_pixels: Optional[float] = Field(
         1000000000.0, description="Maximum pixels for reduction", title="Max Pixels"
     )
-    image: Optional[str] = Field(
-        "UMD/hansen/global_forest_change_2023_v1_11",
-        description="Google Earth Engine image name.",
-        title="Image",
-    )
-    end_year: Optional[int] = Field(
-        None,
-        description="End year for the trend analysis (e.g. 2023). This must be consistent with the version of the Hansen image selected (e.g. the 2023_v1_11 image covers up to the end of 2023). Note that the Hansen dataset baseline starting point is always the year 2000.",
-        title="End Year",
-    )
 
 
 class ForestLayers(BaseModel):
@@ -49,10 +55,6 @@ class ForestLayers(BaseModel):
         extra="forbid",
     )
     tree_cover_threshold: Optional[float] = Field(60.0, title="Tree Cover Threshold")
-    image: Optional[str] = Field(
-        "UMD/hansen/global_forest_change_2023_v1_11", title="Image"
-    )
-    end_year: Optional[int] = Field(None, title="End Year")
     opacity: Optional[float] = Field(1.0, title="Opacity")
 
 
@@ -408,6 +410,10 @@ class Params(BaseModel):
     gee_project_name: Optional[GeeProjectName] = Field(
         None, title="Connect to Earth Engine"
     )
+    time_range: Optional[TimeRange] = Field(
+        None, description="Choose the period of time to analyze.", title="Time Range"
+    )
+    hansen_image: Optional[HansenImage] = Field(None, title="Hansen Dataset")
     groupers: Optional[Groupers] = Field(None, title="Set Groupers")
     roi: Optional[Roi] = Field(None, title="Load Region of Interest")
     forest_cover_trends: Optional[ForestCoverTrends] = Field(

@@ -13,10 +13,33 @@ from ecoscope_workflows_ext_custom.tasks.results._map import (
 )
 
 
+def _parse_year_range(time_range: Optional[TimeRange]) -> tuple[Optional[int], Optional[int]]:
+    """Return (start_year, end_year) from a TimeRange, or (None, None) if not provided."""
+    import pandas as pd
+
+    start_year = pd.to_datetime(time_range.since).year if time_range else None
+    end_year = pd.to_datetime(time_range.until).year if time_range else None
+    return start_year, end_year
+
+
+def _make_treecover_mask(gfc, tree_cover_threshold: float):
+    """Return (cover_img, cover_mask) from a Hansen GFC image.
+
+    cover_img  — binary pixel image (values → 1) masked to the threshold
+    cover_mask — the raw boolean mask used to filter loss pixels
+    """
+    cover = gfc.select(["treecover2000"])
+    mask = cover.gte(tree_cover_threshold)
+    cover = cover.unmask().updateMask(mask)
+    cover = cover.And(cover)
+    return cover, mask
+
+
 @task
 def extract_forest_cover_trends(
     client: EarthEngineClient,
     aoi: Annotated[AnyDataFrame, Field(description="Area of interest geometry (must have CRS set)")],
+    image: str,
     time_range: Annotated[
         Optional[TimeRange], Field(description="Time range for the trend analysis")
     ] = None,
@@ -37,13 +60,6 @@ def extract_forest_cover_trends(
             description="Maximum pixels for reduction",
         ),
     ] = 1e9,
-    image: Annotated[
-        str,
-        Field(
-            default="UMD/hansen/global_forest_change_2023_v1_11",
-            description="Google Earth Engine image name. Note that the Hansen dataset baseline starting point is always the year 2000.",
-        ),
-    ] = "UMD/hansen/global_forest_change_2023_v1_11",
 ) -> AnyDataFrame:
     """
     Extract forest cover trends from Google Earth Engine dataset.
@@ -66,14 +82,11 @@ def extract_forest_cover_trends(
 
     feat_coll = ee.FeatureCollection(aoi.__geo_interface__)
     gfc = ee.Image(image)
+    start_year, end_year = _parse_year_range(time_range)
 
     # Calculate forested area in 2000
-    treecover2000 = gfc.select(["treecover2000"])
-    treecover2000_mask = treecover2000.gte(tree_cover_threshold)
-    treecover2000 = treecover2000.unmask().updateMask(treecover2000_mask)
-    treecover2000 = treecover2000.And(treecover2000)  # Convert pixel values to 1's
-    treecover2000_area_img = treecover2000.multiply(ee.Image.pixelArea())
-    treecover2000_area = treecover2000_area_img.reduceRegion(
+    treecover2000, treecover2000_mask = _make_treecover_mask(gfc, tree_cover_threshold)
+    treecover2000_area = treecover2000.multiply(ee.Image.pixelArea()).reduceRegion(
         reducer=ee.Reducer.sum(),
         geometry=feat_coll,
         scale=scale,
@@ -84,21 +97,14 @@ def extract_forest_cover_trends(
     forested_area = (forested_area or 0.0) * 0.000247105  # Convert sq.meters to acres
 
     # Calculate forest loss by year
-    loss_img = gfc.select(["loss"])
-    loss_img = loss_img.updateMask(treecover2000_mask)
-    loss_area_img = loss_img.multiply(ee.Image.pixelArea())
     loss_year = gfc.select(["lossyear"])
-
-    # Determine year filters from TimeRange
-    start_year = pd.to_datetime(time_range.since).year if time_range else None
-    end_year = pd.to_datetime(time_range.until).year if time_range else None
+    loss_area_img = gfc.select(["loss"]).updateMask(treecover2000_mask).multiply(ee.Image.pixelArea())
 
     # Apply server-side time filter via lossyear mask if range is provided
+    # Note: we always calculate loss from 2000 for correct survival_area,
+    # but we can mask out pixels beyond the end_year to optimize the reduction.
     if end_year:
-        end_year_short = max(0, end_year - 2000)
-        # Note: we always calculate loss from 2000 for correct survival_area,
-        # but we can mask out pixels beyond the end_year to optimize the reduction.
-        loss_area_img = loss_area_img.updateMask(loss_year.lte(end_year_short))
+        loss_area_img = loss_area_img.updateMask(loss_year.lte(max(0, end_year - 2000)))
 
     loss_by_year = loss_area_img.addBands(loss_year).reduceRegion(
         reducer=ee.Reducer.sum().group(groupField=1),
@@ -134,34 +140,27 @@ def extract_forest_cover_trends(
 def create_forest_layers(
     client: EarthEngineClient,
     aoi: Annotated[AnyGeoDataFrame, Field(description="Area of interest geometry")],
+    image: str,
     time_range: Annotated[
         Optional[TimeRange], Field(description="Time range for the trend analysis")
     ] = None,
     tree_cover_threshold: Annotated[float, Field(default=60.0)] = 60.0,
-    image: Annotated[str, Field(default="UMD/hansen/global_forest_change_2023_v1_11")] = (
-        "UMD/hansen/global_forest_change_2023_v1_11"
-    ),
     opacity: Annotated[float, Field(default=1.0)] = 1.0,
 ) -> Annotated[BitmapLayerDefinition, Field()]:
     """Creates a forest cover and loss tile layer for the map."""
     import base64
     import ee
     import requests
-    import pandas as pd
 
     roi_gdf = aoi.to_crs("EPSG:4326")
     roi_geometry = roi_gdf.dissolve().geometry.iloc[0]
     ee_geometry = ee.Geometry(roi_geometry.__geo_interface__)
 
     gfc = ee.Image(image)
-    forest_cover_img = gfc.select(["treecover2000"])
-    forest_cover_mask = forest_cover_img.gte(tree_cover_threshold)
-    forest_cover_img = forest_cover_img.unmask().updateMask(forest_cover_mask)
-    forest_cover_img = forest_cover_img.And(forest_cover_img)
+    forest_cover_img, forest_cover_mask = _make_treecover_mask(gfc, tree_cover_threshold)
+    start_year, end_year = _parse_year_range(time_range)
 
     loss_year_img = gfc.select("lossyear")
-    start_year = pd.to_datetime(time_range.since).year if time_range else None
-    end_year = pd.to_datetime(time_range.until).year if time_range else None
 
     # Filter loss pixels by the year range
     mask = loss_year_img.gt(0)
