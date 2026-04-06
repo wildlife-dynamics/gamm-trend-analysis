@@ -49,6 +49,15 @@
           "title": "Until",
           "type": "string",
           "description": "The end time"
+        },
+        "timezone": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/TimezoneInfo"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
         }
       },
       "required": [
@@ -153,6 +162,32 @@
       "type": "object",
       "title": "Extract Forest Cover Trends"
     },
+    "persist_forest_cover_data": {
+      "additionalProperties": false,
+      "properties": {
+        "filetypes": {
+          "default": [
+            "csv"
+          ],
+          "items": {
+            "enum": [
+              "csv",
+              "gpkg",
+              "geoparquet",
+              "parquet"
+            ],
+            "type": "string"
+          },
+          "title": "Filetypes",
+          "type": "array",
+          "description": "The output format",
+          "uniqueItems": true
+        }
+      },
+      "required": [],
+      "type": "object",
+      "title": "Export Forest Cover Data"
+    },
     "forest_layers": {
       "additionalProperties": false,
       "properties": {
@@ -169,7 +204,7 @@
       },
       "required": [],
       "type": "object",
-      "title": "Create Forest Map Layers"
+      "title": "Forest Layer Style"
     },
     "base_map_defs": {
       "additionalProperties": false,
@@ -378,17 +413,11 @@
       },
       "type": "object",
       "required": [],
-      "title": "Set Base Maps"
+      "title": "Base Maps"
     },
     "forest_map": {
       "additionalProperties": false,
       "properties": {
-        "static": {
-          "default": false,
-          "title": "Static",
-          "type": "boolean",
-          "description": "Set to true to disable map pan/zoom."
-        },
         "legend_style": {
           "allOf": [
             {
@@ -401,35 +430,11 @@
           "title": "Legend Style",
           "description": "Additional arguments for configuring the legend.",
           "ecoscope:advanced": true
-        },
-        "max_zoom": {
-          "default": 20,
-          "title": "Max Zoom",
-          "type": "integer",
-          "description": "            The maximum zoom level allowed by the map.\n            This setting will be overridden if provided\n            tile layers max zoom levels are lower than this value.\n            ",
-          "ecoscope:advanced": true
-        },
-        "view_state": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/ViewState"
-            }
-          ],
-          "default": {
-            "longitude": 0,
-            "latitude": 0,
-            "zoom": 0,
-            "pitch": 0,
-            "bearing": 0
-          },
-          "title": "View State",
-          "description": "Manually set the view state of the map.",
-          "ecoscope:advanced": true
         }
       },
       "type": "object",
       "required": [],
-      "title": "Create Forest Change Map"
+      "title": "Map Settings"
     },
     "gamm_model": {
       "additionalProperties": false,
@@ -445,19 +450,22 @@
           ],
           "title": "Metric",
           "type": "string",
-          "description": "Metric for optimization"
+          "description": "Metric for optimization",
+          "ecoscope:advanced": true
         },
         "degree_of_freedom": {
-          "default": 20,
+          "default": 10,
           "title": "Degree Of Freedom",
           "type": "integer",
-          "description": "Degrees of freedom for spline basis"
+          "description": "Degrees of freedom for spline basis",
+          "ecoscope:advanced": true
         },
         "degree": {
           "default": 3,
           "title": "Degree",
           "type": "integer",
-          "description": "Degree of B-spline basis"
+          "description": "Degree of B-spline basis",
+          "ecoscope:advanced": true
         },
         "family": {
           "default": "Gaussian",
@@ -468,12 +476,67 @@
           ],
           "title": "Family",
           "type": "string",
-          "description": "Distribution family for GLM"
+          "description": "Distribution family for GLM",
+          "ecoscope:advanced": true
         }
       },
       "required": [],
       "type": "object",
-      "title": "Fit GAMM Model"
+      "title": "Trend Fitting"
+    },
+    "persist_trend_data": {
+      "additionalProperties": false,
+      "properties": {
+        "filetypes": {
+          "default": [
+            "csv"
+          ],
+          "items": {
+            "enum": [
+              "csv",
+              "gpkg",
+              "geoparquet",
+              "parquet"
+            ],
+            "type": "string"
+          },
+          "title": "Filetypes",
+          "type": "array",
+          "description": "The output format",
+          "uniqueItems": true
+        }
+      },
+      "required": [],
+      "type": "object",
+      "title": "Export Trend Data"
+    },
+    "map_widget_title": {
+      "additionalProperties": false,
+      "properties": {
+        "var": {
+          "title": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "var"
+      ],
+      "type": "object",
+      "title": "Map Title"
+    },
+    "chart_widget_title": {
+      "additionalProperties": false,
+      "properties": {
+        "var": {
+          "title": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "var"
+      ],
+      "type": "object",
+      "title": "Chart Title"
     }
   },
   "$defs": {
@@ -488,6 +551,34 @@
         "name"
       ],
       "title": "GoogleEarthEngineConnection",
+      "type": "object"
+    },
+    "TimezoneInfo": {
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "tzCode": {
+          "title": "Tzcode",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "utc": {
+          "title": "Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "tzCode",
+        "name",
+        "utc"
+      ],
+      "title": "TimezoneInfo",
       "type": "object"
     },
     "SpatialGrouper": {
@@ -657,52 +748,6 @@
       },
       "title": "LegendStyle",
       "type": "object"
-    },
-    "ViewState": {
-      "description": "Represents a deck.gl view state",
-      "properties": {
-        "longitude": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 180.0,
-          "minimum": -180.0,
-          "title": "Longitude",
-          "type": "number"
-        },
-        "latitude": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 90.0,
-          "minimum": -90.0,
-          "title": "Latitude",
-          "type": "number"
-        },
-        "zoom": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 20.0,
-          "minimum": 0.0,
-          "title": "Zoom",
-          "type": "number"
-        },
-        "pitch": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 60.0,
-          "minimum": 0.0,
-          "title": "Pitch",
-          "type": "number"
-        },
-        "bearing": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 360.0,
-          "title": "Bearing",
-          "type": "number"
-        }
-      },
-      "title": "ViewState",
-      "type": "object"
     }
   },
   "uiSchema": {
@@ -715,7 +760,8 @@
     "time_range": {
       "ui:order": [
         "since",
-        "until"
+        "until",
+        "timezone"
       ]
     },
     "forest_cover_trends": {
@@ -729,14 +775,6 @@
       "ui:order": [
         "tree_cover_threshold",
         "opacity"
-      ]
-    },
-    "forest_map": {
-      "ui:order": [
-        "static",
-        "legend_style",
-        "max_zoom",
-        "view_state"
       ]
     },
     "gamm_model": {
@@ -755,10 +793,14 @@
       "groupers",
       "roi",
       "forest_cover_trends",
+      "persist_forest_cover_data",
       "forest_layers",
       "base_map_defs",
       "forest_map",
-      "gamm_model"
+      "gamm_model",
+      "persist_trend_data",
+      "map_widget_title",
+      "chart_widget_title"
     ]
   },
   "additionalProperties": false

@@ -42,6 +42,9 @@ from ecoscope_workflows_core.tasks.results import (
     merge_widget_views as merge_widget_views,
 )
 from ecoscope_workflows_core.tasks.skip import never as never
+from ecoscope_workflows_ext_custom.tasks.io import (
+    persist_df_wrapper as persist_df_wrapper,
+)
 from ecoscope_workflows_ext_custom.tasks.results import (
     create_polygon_layer_pydeck as create_polygon_layer_pydeck,
 )
@@ -120,16 +123,7 @@ def main(params: Params):
             ],
             unpack_depth=1,
         )
-        .partial(
-            time_format="%Y",
-            timezone={
-                "label": "UTC",
-                "tzCode": "UTC",
-                "name": "Universal Coordinated Time",
-                "utc": "+00:00",
-            },
-            **(params_dict.get("time_range") or {}),
-        )
+        .partial(time_format="%Y", **(params_dict.get("time_range") or {}))
         .call()
     )
 
@@ -218,6 +212,26 @@ def main(params: Params):
             **(params_dict.get("forest_cover_trends") or {}),
         )
         .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
+    )
+
+    persist_forest_cover_data = (
+        persist_df_wrapper.validate()
+        .set_task_instance_id("persist_forest_cover_data")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                never,
+            ],
+            unpack_depth=1,
+        )
+        .partial(
+            root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+            sanitize=True,
+            filename_prefix="forest_cover",
+            **(params_dict.get("persist_forest_cover_data") or {}),
+        )
+        .mapvalues(argnames=["df"], argvalues=forest_cover_trends)
     )
 
     forest_layers = (
@@ -336,7 +350,13 @@ def main(params: Params):
             ],
             unpack_depth=1,
         )
-        .partial(title="Forest Change Map", **(params_dict.get("forest_map") or {}))
+        .partial(
+            title=None,
+            static=False,
+            max_zoom=20,
+            view_state=None,
+            **(params_dict.get("forest_map") or {}),
+        )
         .mapvalues(
             argnames=["tile_layers", "geo_layers"], argvalues=combined_forest_map_layers
         )
@@ -361,40 +381,6 @@ def main(params: Params):
             **(params_dict.get("persist_forest_map") or {}),
         )
         .mapvalues(argnames=["text"], argvalues=forest_map)
-    )
-
-    forest_map_widget = (
-        create_map_widget_single_view.validate()
-        .set_task_instance_id("forest_map_widget")
-        .handle_errors()
-        .with_tracing()
-        .skipif(
-            conditions=[
-                never,
-            ],
-            unpack_depth=1,
-        )
-        .partial(
-            title="Forest Change Map", **(params_dict.get("forest_map_widget") or {})
-        )
-        .map(argnames=["view", "data"], argvalues=persist_forest_map)
-    )
-
-    grouped_forest_map = (
-        merge_widget_views.validate()
-        .set_task_instance_id("grouped_forest_map")
-        .handle_errors()
-        .with_tracing()
-        .skipif(
-            conditions=[
-                never,
-            ],
-            unpack_depth=1,
-        )
-        .partial(
-            widgets=forest_map_widget, **(params_dict.get("grouped_forest_map") or {})
-        )
-        .call()
     )
 
     gamm_model = (
@@ -441,6 +427,26 @@ def main(params: Params):
         .mapvalues(argnames=["model_params"], argvalues=gamm_model)
     )
 
+    persist_trend_data = (
+        persist_df_wrapper.validate()
+        .set_task_instance_id("persist_trend_data")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                never,
+            ],
+            unpack_depth=1,
+        )
+        .partial(
+            root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+            sanitize=True,
+            filename_prefix="trend_predictions",
+            **(params_dict.get("persist_trend_data") or {}),
+        )
+        .mapvalues(argnames=["df"], argvalues=trend_predictions)
+    )
+
     forest_cover_chart = (
         draw_historic_timeseries.validate()
         .set_task_instance_id("forest_cover_chart")
@@ -454,17 +460,15 @@ def main(params: Params):
             unpack_depth=1,
         )
         .partial(
-            dataframe=trend_predictions,
             current_value_column="y",
             time_column="time",
-            current_value_title="Observed Survival Area",
+            current_value_title="Observed Trend",
             historic_min_column="ci_lower",
             historic_max_column="ci_upper",
             historic_mean_column="predicted",
-            historic_mean_title="GAM Mean",
-            historic_band_title="GAM 95% CI",
+            historic_mean_title="Trend Estimate",
+            historic_band_title="Trend Confidence",
             layout_style={
-                "title": "Forest survival area trend (GAM)",
                 "xaxis": {"title": "Year"},
                 "yaxis": {"title": "Survival Area (acres)"},
             },
@@ -496,6 +500,70 @@ def main(params: Params):
         .mapvalues(argnames=["text"], argvalues=forest_cover_chart)
     )
 
+    map_widget_title = (
+        set_string_var.validate()
+        .set_task_instance_id("map_widget_title")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(**(params_dict.get("map_widget_title") or {}))
+        .call()
+    )
+
+    chart_widget_title = (
+        set_string_var.validate()
+        .set_task_instance_id("chart_widget_title")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(**(params_dict.get("chart_widget_title") or {}))
+        .call()
+    )
+
+    forest_map_widget = (
+        create_map_widget_single_view.validate()
+        .set_task_instance_id("forest_map_widget")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                never,
+            ],
+            unpack_depth=1,
+        )
+        .partial(title=map_widget_title, **(params_dict.get("forest_map_widget") or {}))
+        .map(argnames=["view", "data"], argvalues=persist_forest_map)
+    )
+
+    grouped_forest_map = (
+        merge_widget_views.validate()
+        .set_task_instance_id("grouped_forest_map")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                never,
+            ],
+            unpack_depth=1,
+        )
+        .partial(
+            widgets=forest_map_widget, **(params_dict.get("grouped_forest_map") or {})
+        )
+        .call()
+    )
+
     forest_cover_widget = (
         create_plot_widget_single_view.validate()
         .set_task_instance_id("forest_cover_widget")
@@ -508,8 +576,7 @@ def main(params: Params):
             unpack_depth=1,
         )
         .partial(
-            title="Forest Cover Trend Chart",
-            **(params_dict.get("forest_cover_widget") or {}),
+            title=chart_widget_title, **(params_dict.get("forest_cover_widget") or {})
         )
         .map(argnames=["view", "data"], argvalues=persist_forest_cover)
     )

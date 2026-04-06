@@ -10,6 +10,13 @@ COPY --from=fetch /root/.pixi /root/.pixi
 COPY --from=fetch /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 ENV PATH="/root/.pixi/bin:$PATH"
 
+# if local release artifacts are required by the spec, then we expect them to
+# have been copied into the build context at .tmp, and we copy them into the
+# container here, to the aboslute path /tmp, for compatibility with the pixi
+# requirement that local release artifacts reside within an absolute path.
+COPY .tmp /tmp
+RUN rm -rf .tmp
+
 WORKDIR /app
 COPY . .
 RUN pixi install -e default -e runner --locked

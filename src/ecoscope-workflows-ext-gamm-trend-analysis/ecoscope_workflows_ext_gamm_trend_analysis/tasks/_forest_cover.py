@@ -90,6 +90,7 @@ def extract_forest_cover_trends(
         reducer=ee.Reducer.sum(),
         geometry=feat_coll,
         scale=scale,
+        crs="EPSG:3857",
         maxPixels=max_pixels,
     )
 
@@ -110,6 +111,7 @@ def extract_forest_cover_trends(
         reducer=ee.Reducer.sum().group(groupField=1),
         geometry=feat_coll,
         scale=scale,
+        crs="EPSG:3857",
         maxPixels=max_pixels,
     )
 

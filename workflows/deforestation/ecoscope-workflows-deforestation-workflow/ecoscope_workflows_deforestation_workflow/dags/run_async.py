@@ -28,6 +28,9 @@ from ecoscope_workflows_core.tasks.skip import (
 )
 from ecoscope_workflows_core.tasks.skip import any_is_empty_df as any_is_empty_df
 from ecoscope_workflows_core.tasks.skip import never as never
+from ecoscope_workflows_ext_custom.tasks.io import (
+    persist_df_wrapper as persist_df_wrapper,
+)
 from ecoscope_workflows_ext_custom.tasks.results import (
     create_polygon_layer_pydeck as create_polygon_layer_pydeck,
 )
@@ -77,6 +80,7 @@ def main(params: Params):
             "hansen_image",
             "split_roi_groups",
         ],
+        "persist_forest_cover_data": ["forest_cover_trends"],
         "forest_layers": [
             "gee_project_name",
             "time_range",
@@ -89,13 +93,16 @@ def main(params: Params):
         "combined_forest_map_layers": ["merged_forest_layers", "roi_layer"],
         "forest_map": ["combined_forest_map_layers"],
         "persist_forest_map": ["forest_map", "forest_map"],
-        "forest_map_widget": ["persist_forest_map"],
-        "grouped_forest_map": ["forest_map_widget"],
         "gamm_model": ["forest_cover_trends"],
         "trend_predictions": ["gamm_model"],
-        "forest_cover_chart": ["trend_predictions", "trend_predictions"],
+        "persist_trend_data": ["trend_predictions"],
+        "forest_cover_chart": ["trend_predictions"],
         "persist_forest_cover": ["forest_cover_chart", "forest_cover_chart"],
-        "forest_cover_widget": ["persist_forest_cover"],
+        "map_widget_title": [],
+        "chart_widget_title": [],
+        "forest_map_widget": ["map_widget_title", "persist_forest_map"],
+        "grouped_forest_map": ["forest_map_widget"],
+        "forest_cover_widget": ["chart_widget_title", "persist_forest_cover"],
         "grouped_forest_cover": ["forest_cover_widget"],
         "gamm_dashboard": [
             "workflow_details",
@@ -154,12 +161,6 @@ def main(params: Params):
             .set_executor("lithops"),
             partial={
                 "time_format": "%Y",
-                "timezone": {
-                    "label": "UTC",
-                    "tzCode": "UTC",
-                    "name": "Universal Coordinated Time",
-                    "utc": "+00:00",
-                },
             }
             | (params_dict.get("time_range") or {}),
             method="call",
@@ -255,6 +256,30 @@ def main(params: Params):
             kwargs={
                 "argnames": ["aoi"],
                 "argvalues": DependsOn("split_roi_groups"),
+            },
+        ),
+        "persist_forest_cover_data": Node(
+            async_task=persist_df_wrapper.validate()
+            .set_task_instance_id("persist_forest_cover_data")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    never,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+                "sanitize": True,
+                "filename_prefix": "forest_cover",
+            }
+            | (params_dict.get("persist_forest_cover_data") or {}),
+            method="mapvalues",
+            kwargs={
+                "argnames": ["df"],
+                "argvalues": DependsOn("forest_cover_trends"),
             },
         ),
         "forest_layers": Node(
@@ -399,7 +424,10 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "title": "Forest Change Map",
+                "title": None,
+                "static": False,
+                "max_zoom": 20,
+                "view_state": None,
             }
             | (params_dict.get("forest_map") or {}),
             method="mapvalues",
@@ -432,46 +460,6 @@ def main(params: Params):
                 "argnames": ["text"],
                 "argvalues": DependsOn("forest_map"),
             },
-        ),
-        "forest_map_widget": Node(
-            async_task=create_map_widget_single_view.validate()
-            .set_task_instance_id("forest_map_widget")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    never,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "title": "Forest Change Map",
-            }
-            | (params_dict.get("forest_map_widget") or {}),
-            method="map",
-            kwargs={
-                "argnames": ["view", "data"],
-                "argvalues": DependsOn("persist_forest_map"),
-            },
-        ),
-        "grouped_forest_map": Node(
-            async_task=merge_widget_views.validate()
-            .set_task_instance_id("grouped_forest_map")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    never,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "widgets": DependsOn("forest_map_widget"),
-            }
-            | (params_dict.get("grouped_forest_map") or {}),
-            method="call",
         ),
         "gamm_model": Node(
             async_task=fit_gamm_model.validate()
@@ -525,6 +513,30 @@ def main(params: Params):
                 "argvalues": DependsOn("gamm_model"),
             },
         ),
+        "persist_trend_data": Node(
+            async_task=persist_df_wrapper.validate()
+            .set_task_instance_id("persist_trend_data")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    never,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+                "sanitize": True,
+                "filename_prefix": "trend_predictions",
+            }
+            | (params_dict.get("persist_trend_data") or {}),
+            method="mapvalues",
+            kwargs={
+                "argnames": ["df"],
+                "argvalues": DependsOn("trend_predictions"),
+            },
+        ),
         "forest_cover_chart": Node(
             async_task=draw_historic_timeseries.validate()
             .set_task_instance_id("forest_cover_chart")
@@ -539,17 +551,15 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "dataframe": DependsOn("trend_predictions"),
                 "current_value_column": "y",
                 "time_column": "time",
-                "current_value_title": "Observed Survival Area",
+                "current_value_title": "Observed Trend",
                 "historic_min_column": "ci_lower",
                 "historic_max_column": "ci_upper",
                 "historic_mean_column": "predicted",
-                "historic_mean_title": "GAM Mean",
-                "historic_band_title": "GAM 95% CI",
+                "historic_mean_title": "Trend Estimate",
+                "historic_band_title": "Trend Confidence",
                 "layout_style": {
-                    "title": "Forest survival area trend (GAM)",
                     "xaxis": {
                         "title": "Year",
                     },
@@ -597,6 +607,78 @@ def main(params: Params):
                 "argvalues": DependsOn("forest_cover_chart"),
             },
         ),
+        "map_widget_title": Node(
+            async_task=set_string_var.validate()
+            .set_task_instance_id("map_widget_title")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial=(params_dict.get("map_widget_title") or {}),
+            method="call",
+        ),
+        "chart_widget_title": Node(
+            async_task=set_string_var.validate()
+            .set_task_instance_id("chart_widget_title")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial=(params_dict.get("chart_widget_title") or {}),
+            method="call",
+        ),
+        "forest_map_widget": Node(
+            async_task=create_map_widget_single_view.validate()
+            .set_task_instance_id("forest_map_widget")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    never,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "title": DependsOn("map_widget_title"),
+            }
+            | (params_dict.get("forest_map_widget") or {}),
+            method="map",
+            kwargs={
+                "argnames": ["view", "data"],
+                "argvalues": DependsOn("persist_forest_map"),
+            },
+        ),
+        "grouped_forest_map": Node(
+            async_task=merge_widget_views.validate()
+            .set_task_instance_id("grouped_forest_map")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    never,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "widgets": DependsOn("forest_map_widget"),
+            }
+            | (params_dict.get("grouped_forest_map") or {}),
+            method="call",
+        ),
         "forest_cover_widget": Node(
             async_task=create_plot_widget_single_view.validate()
             .set_task_instance_id("forest_cover_widget")
@@ -610,7 +692,7 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "title": "Forest Cover Trend Chart",
+                "title": DependsOn("chart_widget_title"),
             }
             | (params_dict.get("forest_cover_widget") or {}),
             method="map",

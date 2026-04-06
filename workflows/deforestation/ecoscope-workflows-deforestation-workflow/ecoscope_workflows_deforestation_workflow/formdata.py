@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, confloat, constr
 
@@ -16,22 +16,6 @@ class WorkflowDetails(BaseModel):
     )
     name: str = Field(..., title="Workflow Name")
     description: Optional[str] = Field("", title="Workflow Description")
-
-
-class TimeRange(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    since: datetime = Field(
-        ...,
-        description="Start year of the analysis. The Hansen dataset baseline always starts from 2000.",
-        title="Since",
-    )
-    until: datetime = Field(
-        ...,
-        description="End year of the analysis. Depends on the Hansen dataset selected (e.g. UMD/hansen/global_forest_change_2024_v1_12 covers up to 2024).",
-        title="Until",
-    )
 
 
 class HansenImage(BaseModel):
@@ -57,6 +41,31 @@ class ForestCoverTrends(BaseModel):
     )
     max_pixels: Optional[float] = Field(
         1000000000.0, description="Maximum pixels for reduction", title="Max Pixels"
+    )
+
+
+class Filetype(str, Enum):
+    csv = "csv"
+    gpkg = "gpkg"
+    geoparquet = "geoparquet"
+    parquet = "parquet"
+
+
+class PersistForestCoverData(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    filetypes: Optional[List[Filetype]] = Field(
+        ["csv"], description="The output format", title="Filetypes"
+    )
+
+
+class ForestAnalysis(BaseModel):
+    forest_cover_trends: Optional[ForestCoverTrends] = Field(
+        None, title="Extract Forest Cover Trends"
+    )
+    persist_forest_cover_data: Optional[PersistForestCoverData] = Field(
+        None, title="Export Forest Cover Data"
     )
 
 
@@ -258,7 +267,7 @@ class GammModel(BaseModel):
         "AIC", description="Metric for optimization", title="Metric"
     )
     degree_of_freedom: Optional[int] = Field(
-        20, description="Degrees of freedom for spline basis", title="Degree Of Freedom"
+        10, description="Degrees of freedom for spline basis", title="Degree Of Freedom"
     )
     degree: Optional[int] = Field(
         3, description="Degree of B-spline basis", title="Degree"
@@ -268,8 +277,71 @@ class GammModel(BaseModel):
     )
 
 
+class PersistTrendData(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    filetypes: Optional[List[Filetype]] = Field(
+        ["csv"], description="The output format", title="Filetypes"
+    )
+
+
+class TrendAnalysis(BaseModel):
+    gamm_model: Optional[GammModel] = Field(None, title="Trend Fitting")
+    persist_trend_data: Optional[PersistTrendData] = Field(
+        None, title="Export Trend Data"
+    )
+
+
+class MapWidgetTitle(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    var: str = Field(..., title="")
+
+
+class ChartWidgetTitle(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    var: str = Field(..., title="")
+
+
+class OutputTitles(BaseModel):
+    map_widget_title: Optional[MapWidgetTitle] = Field(None, title="Map Title")
+    chart_widget_title: Optional[ChartWidgetTitle] = Field(None, title="Chart Title")
+
+
+class MapWidgetTitle1(BaseModel):
+    var: Optional[Any] = Field("Forest Change Map", title="Map Title")
+
+
+class ChartWidgetTitle1(BaseModel):
+    var: Optional[Any] = Field("Forest Cover Trend Chart", title="Chart Title")
+
+
+class Filetype2(Enum):
+    csv = "csv"
+    parquet = "parquet"
+
+
+class PersistForestCoverData1(BaseModel):
+    filetypes: Optional[List[Filetype2]] = ["parquet"]
+
+
+class PersistTrendData1(BaseModel):
+    filetypes: Optional[List[Filetype2]] = ["parquet"]
+
+
 class GoogleEarthEngineConnection(BaseModel):
     name: str = Field(..., title="Data Source")
+
+
+class TimezoneInfo(BaseModel):
+    label: str = Field(..., title="Label")
+    tzCode: str = Field(..., title="Tzcode")
+    name: str = Field(..., title="Name")
+    utc: str = Field(..., title="Utc")
 
 
 class SpatialGrouper(BaseModel):
@@ -341,14 +413,6 @@ class LegendStyle(BaseModel):
     placement: Optional[Placement] = Field("bottom-right", title="Placement")
 
 
-class ViewState(BaseModel):
-    longitude: Optional[confloat(ge=-180.0, le=180.0)] = Field(0, title="Longitude")
-    latitude: Optional[confloat(ge=-90.0, le=90.0)] = Field(0, title="Latitude")
-    zoom: Optional[confloat(ge=0.0, le=20.0)] = Field(0, title="Zoom")
-    pitch: Optional[confloat(ge=0.0, le=60.0)] = Field(0, title="Pitch")
-    bearing: Optional[confloat(le=360.0)] = Field(0, title="Bearing")
-
-
 class GeeProjectName(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -358,14 +422,33 @@ class GeeProjectName(BaseModel):
     )
 
 
+class TimeRange(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    since: datetime = Field(
+        ...,
+        description="Start year of the analysis. The Hansen dataset baseline always starts from 2000.",
+        title="Since",
+    )
+    until: datetime = Field(
+        ...,
+        description="End year of the analysis. Depends on the Hansen dataset selected (e.g. UMD/hansen/global_forest_change_2024_v1_12 covers up to 2024).",
+        title="Until",
+    )
+    timezone: Optional[TimezoneInfo] = Field(None, title="Timezone")
+
+
 class Groupers(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    groupers: Optional[List[ValueGrouper]] = Field(
-        [{"index_name": "name"}],
-        description="            Specify how the data should be grouped to create the views for your dashboard.\n            This field is optional; if left blank, all the data will appear in a single view.\n            ",
-        title=" ",
+    groupers: Optional[List[Union[ValueGrouper, TemporalGrouper, SpatialGrouper]]] = (
+        Field(
+            None,
+            description="            Specify how the data should be grouped to create the views for your dashboard.\n            This field is optional; if left blank, all the data will appear in a single view.\n            ",
+            title=" ",
+        )
     )
 
 
@@ -373,17 +456,19 @@ class Roi(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    config: Union[LocalFileSpatialFeatures, RemoteFileSpatialFeatures] = Field(
-        ..., title="Spatial Feature Data Source"
-    )
+    config: Union[
+        LocalFileSpatialFeatures, RemoteFileSpatialFeatures, EarthRangerSpatialFeatures
+    ] = Field(..., title="Spatial Feature Data Source")
+
+
+class RegionOfInterest(BaseModel):
+    groupers: Optional[Groupers] = Field(None, title="Set Groupers")
+    roi: Optional[Roi] = Field(None, title="Load Region of Interest")
 
 
 class ForestMap(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
-    )
-    static: Optional[bool] = Field(
-        False, description="Set to true to disable map pan/zoom.", title="Static"
     )
     legend_style: Optional[LegendStyle] = Field(
         default_factory=lambda: LegendStyle.model_validate(
@@ -392,18 +477,20 @@ class ForestMap(BaseModel):
         description="Additional arguments for configuring the legend.",
         title="Legend Style",
     )
-    max_zoom: Optional[int] = Field(
-        20,
-        description="            The maximum zoom level allowed by the map.\n            This setting will be overridden if provided\n            tile layers max zoom levels are lower than this value.\n            ",
-        title="Max Zoom",
-    )
-    view_state: Optional[ViewState] = Field(
-        default_factory=lambda: ViewState.model_validate(
-            {"longitude": 0, "latitude": 0, "zoom": 0, "pitch": 0, "bearing": 0}
-        ),
-        description="Manually set the view state of the map.",
-        title="View State",
-    )
+
+
+class ForestChangeMap(BaseModel):
+    forest_layers: Optional[ForestLayers] = Field(None, title="Forest Layer Style")
+    base_map_defs: Optional[BaseMapDefs] = Field(None, title="Base Maps")
+    forest_map: Optional[ForestMap] = Field(None, title="Map Settings")
+
+
+class Groupers1(BaseModel):
+    groupers: Optional[List[ValueGrouper]] = [{"index_name": "name"}]
+
+
+class Roi1(BaseModel):
+    config: Optional[Union[LocalFileSpatialFeatures, RemoteFileSpatialFeatures]] = None
 
 
 class FormData(BaseModel):
@@ -422,14 +509,34 @@ class FormData(BaseModel):
         None, description="Choose the period of time to analyze.", title="Time Range"
     )
     hansen_image: Optional[HansenImage] = Field(None, title="Hansen Dataset")
-    groupers: Optional[Groupers] = Field(None, title="Set Groupers")
-    roi: Optional[Roi] = Field(None, title="Load Region of Interest")
-    forest_cover_trends: Optional[ForestCoverTrends] = Field(
-        None, title="Extract Forest Cover Trends"
+    Region_of_Interest: Optional[RegionOfInterest] = Field(
+        None,
+        alias="Region of Interest",
+        description="Define the geographic area and grouping for the analysis.",
     )
-    forest_layers: Optional[ForestLayers] = Field(
-        None, title="Create Forest Map Layers"
+    Forest_Analysis: Optional[ForestAnalysis] = Field(
+        None,
+        alias="Forest Analysis",
+        description="Configure forest cover extraction from the Hansen dataset and data export.",
     )
-    base_map_defs: Optional[BaseMapDefs] = Field(None, title="Set Base Maps")
-    forest_map: Optional[ForestMap] = Field(None, title="Create Forest Change Map")
-    gamm_model: Optional[GammModel] = Field(None, title="Fit GAMM Model")
+    Forest_Change_Map: Optional[ForestChangeMap] = Field(
+        None,
+        alias="Forest Change Map",
+        description="Configure the forest change map layers and visualization settings.",
+    )
+    Trend_Analysis: Optional[TrendAnalysis] = Field(
+        None,
+        alias="Trend Analysis",
+        description="Configure the GAM trend fitting parameters, data export, and chart output.",
+    )
+    Output_Titles: Optional[OutputTitles] = Field(
+        None,
+        alias="Output Titles",
+        description="Configure the titles displayed on each dashboard output.",
+    )
+    groupers: Optional[Groupers1] = None
+    roi: Optional[Roi1] = None
+    map_widget_title: Optional[MapWidgetTitle1] = None
+    chart_widget_title: Optional[ChartWidgetTitle1] = None
+    persist_forest_cover_data: Optional[PersistForestCoverData1] = None
+    persist_trend_data: Optional[PersistTrendData1] = None

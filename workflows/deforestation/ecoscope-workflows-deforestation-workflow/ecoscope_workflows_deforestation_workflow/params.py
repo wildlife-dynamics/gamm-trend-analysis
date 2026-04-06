@@ -18,14 +18,6 @@ class WorkflowDetails(BaseModel):
     description: Optional[str] = Field("", title="Workflow Description")
 
 
-class TimeRange(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    since: datetime = Field(..., description="The start time", title="Since")
-    until: datetime = Field(..., description="The end time", title="Until")
-
-
 class HansenImage(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -47,6 +39,22 @@ class ForestCoverTrends(BaseModel):
     )
     max_pixels: Optional[float] = Field(
         1000000000.0, description="Maximum pixels for reduction", title="Max Pixels"
+    )
+
+
+class Filetype(str, Enum):
+    csv = "csv"
+    gpkg = "gpkg"
+    geoparquet = "geoparquet"
+    parquet = "parquet"
+
+
+class PersistForestCoverData(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    filetypes: Optional[List[Filetype]] = Field(
+        ["csv"], description="The output format", title="Filetypes"
     )
 
 
@@ -248,7 +256,7 @@ class GammModel(BaseModel):
         "AIC", description="Metric for optimization", title="Metric"
     )
     degree_of_freedom: Optional[int] = Field(
-        20, description="Degrees of freedom for spline basis", title="Degree Of Freedom"
+        10, description="Degrees of freedom for spline basis", title="Degree Of Freedom"
     )
     degree: Optional[int] = Field(
         3, description="Degree of B-spline basis", title="Degree"
@@ -258,8 +266,38 @@ class GammModel(BaseModel):
     )
 
 
+class PersistTrendData(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    filetypes: Optional[List[Filetype]] = Field(
+        ["csv"], description="The output format", title="Filetypes"
+    )
+
+
+class MapWidgetTitle(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    var: str = Field(..., title="")
+
+
+class ChartWidgetTitle(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    var: str = Field(..., title="")
+
+
 class GoogleEarthEngineConnection(BaseModel):
     name: str = Field(..., title="Data Source")
+
+
+class TimezoneInfo(BaseModel):
+    label: str = Field(..., title="Label")
+    tzCode: str = Field(..., title="Tzcode")
+    name: str = Field(..., title="Name")
+    utc: str = Field(..., title="Utc")
 
 
 class SpatialGrouper(BaseModel):
@@ -331,14 +369,6 @@ class LegendStyle(BaseModel):
     placement: Optional[Placement] = Field("bottom-right", title="Placement")
 
 
-class ViewState(BaseModel):
-    longitude: Optional[confloat(ge=-180.0, le=180.0)] = Field(0, title="Longitude")
-    latitude: Optional[confloat(ge=-90.0, le=90.0)] = Field(0, title="Latitude")
-    zoom: Optional[confloat(ge=0.0, le=20.0)] = Field(0, title="Zoom")
-    pitch: Optional[confloat(ge=0.0, le=60.0)] = Field(0, title="Pitch")
-    bearing: Optional[confloat(le=360.0)] = Field(0, title="Bearing")
-
-
 class GeeProjectName(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -346,6 +376,15 @@ class GeeProjectName(BaseModel):
     data_source: GoogleEarthEngineConnection = Field(
         ..., description="Select one of your configured data sources.", title=""
     )
+
+
+class TimeRange(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    since: datetime = Field(..., description="The start time", title="Since")
+    until: datetime = Field(..., description="The end time", title="Until")
+    timezone: Optional[TimezoneInfo] = Field(None, title="Timezone")
 
 
 class Groupers(BaseModel):
@@ -374,27 +413,12 @@ class ForestMap(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    static: Optional[bool] = Field(
-        False, description="Set to true to disable map pan/zoom.", title="Static"
-    )
     legend_style: Optional[LegendStyle] = Field(
         default_factory=lambda: LegendStyle.model_validate(
             {"placement": "bottom-right"}
         ),
         description="Additional arguments for configuring the legend.",
         title="Legend Style",
-    )
-    max_zoom: Optional[int] = Field(
-        20,
-        description="            The maximum zoom level allowed by the map.\n            This setting will be overridden if provided\n            tile layers max zoom levels are lower than this value.\n            ",
-        title="Max Zoom",
-    )
-    view_state: Optional[ViewState] = Field(
-        default_factory=lambda: ViewState.model_validate(
-            {"longitude": 0, "latitude": 0, "zoom": 0, "pitch": 0, "bearing": 0}
-        ),
-        description="Manually set the view state of the map.",
-        title="View State",
     )
 
 
@@ -419,9 +443,15 @@ class Params(BaseModel):
     forest_cover_trends: Optional[ForestCoverTrends] = Field(
         None, title="Extract Forest Cover Trends"
     )
-    forest_layers: Optional[ForestLayers] = Field(
-        None, title="Create Forest Map Layers"
+    persist_forest_cover_data: Optional[PersistForestCoverData] = Field(
+        None, title="Export Forest Cover Data"
     )
-    base_map_defs: Optional[BaseMapDefs] = Field(None, title="Set Base Maps")
-    forest_map: Optional[ForestMap] = Field(None, title="Create Forest Change Map")
-    gamm_model: Optional[GammModel] = Field(None, title="Fit GAMM Model")
+    forest_layers: Optional[ForestLayers] = Field(None, title="Forest Layer Style")
+    base_map_defs: Optional[BaseMapDefs] = Field(None, title="Base Maps")
+    forest_map: Optional[ForestMap] = Field(None, title="Map Settings")
+    gamm_model: Optional[GammModel] = Field(None, title="Trend Fitting")
+    persist_trend_data: Optional[PersistTrendData] = Field(
+        None, title="Export Trend Data"
+    )
+    map_widget_title: Optional[MapWidgetTitle] = Field(None, title="Map Title")
+    chart_widget_title: Optional[ChartWidgetTitle] = Field(None, title="Chart Title")

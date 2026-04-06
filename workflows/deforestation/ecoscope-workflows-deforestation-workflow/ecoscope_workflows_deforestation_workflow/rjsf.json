@@ -50,6 +50,15 @@
           "title": "Until",
           "type": "string",
           "description": "End year of the analysis. Depends on the Hansen dataset selected (e.g. UMD/hansen/global_forest_change_2024_v1_12 covers up to 2024)."
+        },
+        "timezone": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/TimezoneInfo"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
         }
       },
       "required": [
@@ -76,34 +85,516 @@
       "type": "object",
       "title": "Hansen Dataset"
     },
-    "groupers": {
-      "additionalProperties": false,
+    "Region of Interest": {
+      "type": "object",
+      "description": "Define the geographic area and grouping for the analysis.",
+      "ecoscope:task_group": true,
       "properties": {
         "groupers": {
-          "default": [
-            {
-              "index_name": "name"
+          "additionalProperties": false,
+          "properties": {
+            "groupers": {
+              "default": null,
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ValueGrouper"
+                  },
+                  {
+                    "$ref": "#/$defs/TemporalGrouper"
+                  },
+                  {
+                    "$ref": "#/$defs/SpatialGrouper"
+                  }
+                ],
+                "title": "Group by"
+              },
+              "title": " ",
+              "type": "array",
+              "description": "            Specify how the data should be grouped to create the views for your dashboard.\n            This field is optional; if left blank, all the data will appear in a single view.\n            "
             }
+          },
+          "type": "object",
+          "required": [],
+          "title": "Set Groupers"
+        },
+        "roi": {
+          "additionalProperties": false,
+          "properties": {
+            "config": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/LocalFileSpatialFeatures"
+                },
+                {
+                  "$ref": "#/$defs/RemoteFileSpatialFeatures"
+                },
+                {
+                  "$ref": "#/$defs/EarthRangerSpatialFeatures"
+                }
+              ],
+              "title": "Spatial Feature Data Source"
+            }
+          },
+          "required": [
+            "config"
           ],
+          "type": "object",
+          "title": "Load Region of Interest"
+        }
+      }
+    },
+    "Forest Analysis": {
+      "type": "object",
+      "description": "Configure forest cover extraction from the Hansen dataset and data export.",
+      "ecoscope:task_group": true,
+      "properties": {
+        "forest_cover_trends": {
+          "additionalProperties": false,
+          "properties": {
+            "tree_cover_threshold": {
+              "default": 60.0,
+              "title": "Tree Cover Threshold",
+              "type": "number",
+              "description": "Minimum tree cover percentage (0-100)"
+            },
+            "scale": {
+              "default": 30,
+              "title": "Scale",
+              "type": "integer",
+              "description": "Pixel scale in meters for reduction",
+              "ecoscope:advanced": true
+            },
+            "max_pixels": {
+              "default": 1000000000.0,
+              "title": "Max Pixels",
+              "type": "number",
+              "description": "Maximum pixels for reduction",
+              "ecoscope:advanced": true
+            }
+          },
+          "required": [],
+          "type": "object",
+          "title": "Extract Forest Cover Trends"
+        },
+        "persist_forest_cover_data": {
+          "additionalProperties": false,
+          "properties": {
+            "filetypes": {
+              "default": [
+                "csv"
+              ],
+              "items": {
+                "enum": [
+                  "csv",
+                  "gpkg",
+                  "geoparquet",
+                  "parquet"
+                ],
+                "type": "string"
+              },
+              "title": "Filetypes",
+              "type": "array",
+              "description": "The output format",
+              "uniqueItems": true
+            }
+          },
+          "required": [],
+          "type": "object",
+          "title": "Export Forest Cover Data"
+        }
+      }
+    },
+    "Forest Change Map": {
+      "type": "object",
+      "description": "Configure the forest change map layers and visualization settings.",
+      "ecoscope:task_group": true,
+      "properties": {
+        "forest_layers": {
+          "additionalProperties": false,
+          "properties": {
+            "tree_cover_threshold": {
+              "default": 60.0,
+              "title": "Tree Cover Threshold",
+              "type": "number"
+            },
+            "opacity": {
+              "default": 1.0,
+              "title": "Opacity",
+              "type": "number"
+            }
+          },
+          "required": [],
+          "type": "object",
+          "title": "Forest Layer Style"
+        },
+        "base_map_defs": {
+          "additionalProperties": false,
+          "properties": {
+            "base_maps": {
+              "default": [
+                {
+                  "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+                  "opacity": 1,
+                  "max_zoom": 20
+                },
+                {
+                  "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                  "opacity": 0.5,
+                  "max_zoom": 20
+                }
+              ],
+              "items": {
+                "title": "Base Layer",
+                "anyOf": [
+                  {
+                    "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
+                    "properties": {
+                      "url": {
+                        "default": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                        "title": "Preset Layer URL",
+                        "type": "string",
+                        "const": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                        "enum": [
+                          "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        ]
+                      },
+                      "opacity": {
+                        "default": 1,
+                        "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Layer Opacity",
+                        "type": "number"
+                      }
+                    },
+                    "title": "Open Street Map",
+                    "type": "object"
+                  },
+                  {
+                    "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
+                    "properties": {
+                      "url": {
+                        "default": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+                        "title": "Preset Layer URL",
+                        "type": "string",
+                        "const": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+                        "enum": [
+                          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+                        ]
+                      },
+                      "opacity": {
+                        "default": 1,
+                        "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Layer Opacity",
+                        "type": "number"
+                      }
+                    },
+                    "title": "Roadmap",
+                    "type": "object"
+                  },
+                  {
+                    "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
+                    "properties": {
+                      "url": {
+                        "default": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                        "title": "Preset Layer URL",
+                        "type": "string",
+                        "const": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                        "enum": [
+                          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                        ]
+                      },
+                      "opacity": {
+                        "default": 1,
+                        "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Layer Opacity",
+                        "type": "number"
+                      }
+                    },
+                    "title": "Satellite",
+                    "type": "object"
+                  },
+                  {
+                    "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
+                    "properties": {
+                      "url": {
+                        "default": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+                        "title": "Preset Layer URL",
+                        "type": "string",
+                        "const": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+                        "enum": [
+                          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+                        ]
+                      },
+                      "opacity": {
+                        "default": 1,
+                        "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Layer Opacity",
+                        "type": "number"
+                      }
+                    },
+                    "title": "Terrain",
+                    "type": "object"
+                  },
+                  {
+                    "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
+                    "properties": {
+                      "url": {
+                        "default": "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}",
+                        "title": "Preset Layer URL",
+                        "type": "string",
+                        "const": "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}",
+                        "enum": [
+                          "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}"
+                        ]
+                      },
+                      "opacity": {
+                        "default": 1,
+                        "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Layer Opacity",
+                        "type": "number"
+                      }
+                    },
+                    "title": "LandDx",
+                    "type": "object"
+                  },
+                  {
+                    "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
+                    "properties": {
+                      "url": {
+                        "default": "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
+                        "title": "Preset Layer URL",
+                        "type": "string",
+                        "const": "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
+                        "enum": [
+                          "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
+                        ]
+                      },
+                      "opacity": {
+                        "default": 1,
+                        "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Layer Opacity",
+                        "type": "number"
+                      }
+                    },
+                    "title": "USGS Hillshade",
+                    "type": "object"
+                  },
+                  {
+                    "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
+                    "properties": {
+                      "url": {
+                        "default": "https://example.tiles.com/{z}/{x}/{y}.png",
+                        "description": "The URL of a publicly accessible tiled raster service.",
+                        "pattern": "https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}([-a-zA-Z0-9()@:%_\\+.~#?&//=\\{\\}]*)",
+                        "title": "Custom Layer URL",
+                        "type": "string"
+                      },
+                      "opacity": {
+                        "default": 1,
+                        "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
+                        "maximum": 1.0,
+                        "minimum": 0.0,
+                        "title": "Custom Layer Opacity",
+                        "type": "number"
+                      },
+                      "max_zoom": {
+                        "default": 20,
+                        "description": "Set the maximum zoom level to fetch tiles for.",
+                        "title": "Custom Layer Max Zoom",
+                        "type": "integer"
+                      },
+                      "min_zoom": {
+                        "default": 0,
+                        "description": "Set the minimum zoom level to fetch tiles for.",
+                        "title": "Custom Layer Min Zoom",
+                        "type": "integer"
+                      }
+                    },
+                    "title": "Custom Layer (Advanced)",
+                    "type": "object"
+                  }
+                ]
+              },
+              "title": " ",
+              "type": "array",
+              "description": "Select tile layers to use as base layers in map outputs. The first layer in the list will be the bottommost layer displayed.",
+              "ecoscope:advanced": true
+            }
+          },
+          "type": "object",
+          "required": [],
+          "title": "Base Maps"
+        },
+        "forest_map": {
+          "additionalProperties": false,
+          "properties": {
+            "legend_style": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/LegendStyle"
+                }
+              ],
+              "default": {
+                "placement": "bottom-right"
+              },
+              "title": "Legend Style",
+              "description": "Additional arguments for configuring the legend.",
+              "ecoscope:advanced": true
+            }
+          },
+          "type": "object",
+          "required": [],
+          "title": "Map Settings"
+        }
+      }
+    },
+    "Trend Analysis": {
+      "type": "object",
+      "description": "Configure the GAM trend fitting parameters, data export, and chart output.",
+      "ecoscope:task_group": true,
+      "properties": {
+        "gamm_model": {
+          "additionalProperties": false,
+          "properties": {
+            "metric": {
+              "default": "AIC",
+              "enum": [
+                "AIC",
+                "BIC",
+                "Euclidean",
+                "MSE",
+                "R-Squared"
+              ],
+              "title": "Metric",
+              "type": "string",
+              "description": "Metric for optimization",
+              "ecoscope:advanced": true
+            },
+            "degree_of_freedom": {
+              "default": 10,
+              "title": "Degree Of Freedom",
+              "type": "integer",
+              "description": "Degrees of freedom for spline basis",
+              "ecoscope:advanced": true
+            },
+            "degree": {
+              "default": 3,
+              "title": "Degree",
+              "type": "integer",
+              "description": "Degree of B-spline basis",
+              "ecoscope:advanced": true
+            },
+            "family": {
+              "default": "Gaussian",
+              "enum": [
+                "Gaussian",
+                "Poisson",
+                "Binomial"
+              ],
+              "title": "Family",
+              "type": "string",
+              "description": "Distribution family for GLM",
+              "ecoscope:advanced": true
+            }
+          },
+          "required": [],
+          "type": "object",
+          "title": "Trend Fitting"
+        },
+        "persist_trend_data": {
+          "additionalProperties": false,
+          "properties": {
+            "filetypes": {
+              "default": [
+                "csv"
+              ],
+              "items": {
+                "enum": [
+                  "csv",
+                  "gpkg",
+                  "geoparquet",
+                  "parquet"
+                ],
+                "type": "string"
+              },
+              "title": "Filetypes",
+              "type": "array",
+              "description": "The output format",
+              "uniqueItems": true
+            }
+          },
+          "required": [],
+          "type": "object",
+          "title": "Export Trend Data"
+        }
+      }
+    },
+    "Output Titles": {
+      "type": "object",
+      "description": "Configure the titles displayed on each dashboard output.",
+      "ecoscope:task_group": true,
+      "properties": {
+        "map_widget_title": {
+          "additionalProperties": false,
+          "properties": {
+            "var": {
+              "title": "",
+              "type": "string"
+            }
+          },
+          "required": [
+            "var"
+          ],
+          "type": "object",
+          "title": "Map Title"
+        },
+        "chart_widget_title": {
+          "additionalProperties": false,
+          "properties": {
+            "var": {
+              "title": "",
+              "type": "string"
+            }
+          },
+          "required": [
+            "var"
+          ],
+          "type": "object",
+          "title": "Chart Title"
+        }
+      }
+    },
+    "groupers": {
+      "properties": {
+        "groupers": {
           "items": {
             "anyOf": [
               {
                 "$ref": "#/$defs/ValueGrouper"
               }
-            ],
-            "title": "Group by"
+            ]
           },
-          "title": " ",
-          "type": "array",
-          "description": "            Specify how the data should be grouped to create the views for your dashboard.\n            This field is optional; if left blank, all the data will appear in a single view.\n            "
+          "default": [
+            {
+              "index_name": "name"
+            }
+          ]
         }
-      },
-      "type": "object",
-      "required": [],
-      "title": "Set Groupers"
+      }
     },
     "roi": {
-      "additionalProperties": false,
       "properties": {
         "config": {
           "anyOf": [
@@ -113,365 +604,55 @@
             {
               "$ref": "#/$defs/RemoteFileSpatialFeatures"
             }
-          ],
-          "title": "Spatial Feature Data Source"
+          ]
         }
-      },
-      "required": [
-        "config"
-      ],
-      "type": "object",
-      "title": "Load Region of Interest"
+      }
     },
-    "forest_cover_trends": {
-      "additionalProperties": false,
+    "map_widget_title": {
       "properties": {
-        "tree_cover_threshold": {
-          "default": 60.0,
-          "title": "Tree Cover Threshold",
-          "type": "number",
-          "description": "Minimum tree cover percentage (0-100)"
-        },
-        "scale": {
-          "default": 30,
-          "title": "Scale",
-          "type": "integer",
-          "description": "Pixel scale in meters for reduction",
-          "ecoscope:advanced": true
-        },
-        "max_pixels": {
-          "default": 1000000000.0,
-          "title": "Max Pixels",
-          "type": "number",
-          "description": "Maximum pixels for reduction",
-          "ecoscope:advanced": true
+        "var": {
+          "default": "Forest Change Map",
+          "title": "Map Title"
         }
-      },
-      "required": [],
-      "type": "object",
-      "title": "Extract Forest Cover Trends"
+      }
     },
-    "forest_layers": {
-      "additionalProperties": false,
+    "chart_widget_title": {
       "properties": {
-        "tree_cover_threshold": {
-          "default": 60.0,
-          "title": "Tree Cover Threshold",
-          "type": "number"
-        },
-        "opacity": {
-          "default": 1.0,
-          "title": "Opacity",
-          "type": "number"
+        "var": {
+          "default": "Forest Cover Trend Chart",
+          "title": "Chart Title"
         }
-      },
-      "required": [],
-      "type": "object",
-      "title": "Create Forest Map Layers"
+      }
     },
-    "base_map_defs": {
-      "additionalProperties": false,
+    "persist_forest_cover_data": {
       "properties": {
-        "base_maps": {
+        "filetypes": {
           "default": [
-            {
-              "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-              "opacity": 1,
-              "max_zoom": 20
-            },
-            {
-              "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-              "opacity": 0.5,
-              "max_zoom": 20
-            }
+            "parquet"
           ],
           "items": {
-            "title": "Base Layer",
-            "anyOf": [
-              {
-                "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
-                "properties": {
-                  "url": {
-                    "default": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                    "title": "Preset Layer URL",
-                    "type": "string",
-                    "const": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                    "enum": [
-                      "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    ]
-                  },
-                  "opacity": {
-                    "default": 1,
-                    "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
-                    "maximum": 1.0,
-                    "minimum": 0.0,
-                    "title": "Layer Opacity",
-                    "type": "number"
-                  }
-                },
-                "title": "Open Street Map",
-                "type": "object"
-              },
-              {
-                "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
-                "properties": {
-                  "url": {
-                    "default": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-                    "title": "Preset Layer URL",
-                    "type": "string",
-                    "const": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-                    "enum": [
-                      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-                    ]
-                  },
-                  "opacity": {
-                    "default": 1,
-                    "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
-                    "maximum": 1.0,
-                    "minimum": 0.0,
-                    "title": "Layer Opacity",
-                    "type": "number"
-                  }
-                },
-                "title": "Roadmap",
-                "type": "object"
-              },
-              {
-                "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
-                "properties": {
-                  "url": {
-                    "default": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                    "title": "Preset Layer URL",
-                    "type": "string",
-                    "const": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                    "enum": [
-                      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    ]
-                  },
-                  "opacity": {
-                    "default": 1,
-                    "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
-                    "maximum": 1.0,
-                    "minimum": 0.0,
-                    "title": "Layer Opacity",
-                    "type": "number"
-                  }
-                },
-                "title": "Satellite",
-                "type": "object"
-              },
-              {
-                "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
-                "properties": {
-                  "url": {
-                    "default": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-                    "title": "Preset Layer URL",
-                    "type": "string",
-                    "const": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-                    "enum": [
-                      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
-                    ]
-                  },
-                  "opacity": {
-                    "default": 1,
-                    "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
-                    "maximum": 1.0,
-                    "minimum": 0.0,
-                    "title": "Layer Opacity",
-                    "type": "number"
-                  }
-                },
-                "title": "Terrain",
-                "type": "object"
-              },
-              {
-                "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
-                "properties": {
-                  "url": {
-                    "default": "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}",
-                    "title": "Preset Layer URL",
-                    "type": "string",
-                    "const": "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}",
-                    "enum": [
-                      "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}"
-                    ]
-                  },
-                  "opacity": {
-                    "default": 1,
-                    "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
-                    "maximum": 1.0,
-                    "minimum": 0.0,
-                    "title": "Layer Opacity",
-                    "type": "number"
-                  }
-                },
-                "title": "LandDx",
-                "type": "object"
-              },
-              {
-                "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
-                "properties": {
-                  "url": {
-                    "default": "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
-                    "title": "Preset Layer URL",
-                    "type": "string",
-                    "const": "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
-                    "enum": [
-                      "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
-                    ]
-                  },
-                  "opacity": {
-                    "default": 1,
-                    "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
-                    "maximum": 1.0,
-                    "minimum": 0.0,
-                    "title": "Layer Opacity",
-                    "type": "number"
-                  }
-                },
-                "title": "USGS Hillshade",
-                "type": "object"
-              },
-              {
-                "description": "A tiled raster layer loaded on-demand from a URL template (e.g., base maps).",
-                "properties": {
-                  "url": {
-                    "default": "https://example.tiles.com/{z}/{x}/{y}.png",
-                    "description": "The URL of a publicly accessible tiled raster service.",
-                    "pattern": "https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}([-a-zA-Z0-9()@:%_\\+.~#?&//=\\{\\}]*)",
-                    "title": "Custom Layer URL",
-                    "type": "string"
-                  },
-                  "opacity": {
-                    "default": 1,
-                    "description": "Set layer transparency from 1 (fully visible) to 0 (hidden).",
-                    "maximum": 1.0,
-                    "minimum": 0.0,
-                    "title": "Custom Layer Opacity",
-                    "type": "number"
-                  },
-                  "max_zoom": {
-                    "default": 20,
-                    "description": "Set the maximum zoom level to fetch tiles for.",
-                    "title": "Custom Layer Max Zoom",
-                    "type": "integer"
-                  },
-                  "min_zoom": {
-                    "default": 0,
-                    "description": "Set the minimum zoom level to fetch tiles for.",
-                    "title": "Custom Layer Min Zoom",
-                    "type": "integer"
-                  }
-                },
-                "title": "Custom Layer (Advanced)",
-                "type": "object"
-              }
+            "enum": [
+              "csv",
+              "parquet"
             ]
-          },
-          "title": " ",
-          "type": "array",
-          "description": "Select tile layers to use as base layers in map outputs. The first layer in the list will be the bottommost layer displayed.",
-          "ecoscope:advanced": true
+          }
         }
-      },
-      "type": "object",
-      "required": [],
-      "title": "Set Base Maps"
+      }
     },
-    "forest_map": {
-      "additionalProperties": false,
+    "persist_trend_data": {
       "properties": {
-        "static": {
-          "default": false,
-          "title": "Static",
-          "type": "boolean",
-          "description": "Set to true to disable map pan/zoom."
-        },
-        "legend_style": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/LegendStyle"
-            }
+        "filetypes": {
+          "default": [
+            "parquet"
           ],
-          "default": {
-            "placement": "bottom-right"
-          },
-          "title": "Legend Style",
-          "description": "Additional arguments for configuring the legend.",
-          "ecoscope:advanced": true
-        },
-        "max_zoom": {
-          "default": 20,
-          "title": "Max Zoom",
-          "type": "integer",
-          "description": "            The maximum zoom level allowed by the map.\n            This setting will be overridden if provided\n            tile layers max zoom levels are lower than this value.\n            ",
-          "ecoscope:advanced": true
-        },
-        "view_state": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/ViewState"
-            }
-          ],
-          "default": {
-            "longitude": 0,
-            "latitude": 0,
-            "zoom": 0,
-            "pitch": 0,
-            "bearing": 0
-          },
-          "title": "View State",
-          "description": "Manually set the view state of the map.",
-          "ecoscope:advanced": true
+          "items": {
+            "enum": [
+              "csv",
+              "parquet"
+            ]
+          }
         }
-      },
-      "type": "object",
-      "required": [],
-      "title": "Create Forest Change Map"
-    },
-    "gamm_model": {
-      "additionalProperties": false,
-      "properties": {
-        "metric": {
-          "default": "AIC",
-          "enum": [
-            "AIC",
-            "BIC",
-            "Euclidean",
-            "MSE",
-            "R-Squared"
-          ],
-          "title": "Metric",
-          "type": "string",
-          "description": "Metric for optimization"
-        },
-        "degree_of_freedom": {
-          "default": 20,
-          "title": "Degree Of Freedom",
-          "type": "integer",
-          "description": "Degrees of freedom for spline basis"
-        },
-        "degree": {
-          "default": 3,
-          "title": "Degree",
-          "type": "integer",
-          "description": "Degree of B-spline basis"
-        },
-        "family": {
-          "default": "Gaussian",
-          "enum": [
-            "Gaussian",
-            "Poisson",
-            "Binomial"
-          ],
-          "title": "Family",
-          "type": "string",
-          "description": "Distribution family for GLM"
-        }
-      },
-      "required": [],
-      "type": "object",
-      "title": "Fit GAMM Model"
+      }
     }
   },
   "$defs": {
@@ -486,6 +667,34 @@
         "name"
       ],
       "title": "GoogleEarthEngineConnection",
+      "type": "object"
+    },
+    "TimezoneInfo": {
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "tzCode": {
+          "title": "Tzcode",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "utc": {
+          "title": "Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "tzCode",
+        "name",
+        "utc"
+      ],
+      "title": "TimezoneInfo",
       "type": "object"
     },
     "SpatialGrouper": {
@@ -668,52 +877,6 @@
       },
       "title": "LegendStyle",
       "type": "object"
-    },
-    "ViewState": {
-      "description": "Represents a deck.gl view state",
-      "properties": {
-        "longitude": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 180.0,
-          "minimum": -180.0,
-          "title": "Longitude",
-          "type": "number"
-        },
-        "latitude": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 90.0,
-          "minimum": -90.0,
-          "title": "Latitude",
-          "type": "number"
-        },
-        "zoom": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 20.0,
-          "minimum": 0.0,
-          "title": "Zoom",
-          "type": "number"
-        },
-        "pitch": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 60.0,
-          "minimum": 0.0,
-          "title": "Pitch",
-          "type": "number"
-        },
-        "bearing": {
-          "default": 0,
-          "ecoscope:advanced": true,
-          "maximum": 360.0,
-          "title": "Bearing",
-          "type": "number"
-        }
-      },
-      "title": "ViewState",
-      "type": "object"
     }
   },
   "uiSchema": {
@@ -726,36 +889,60 @@
     "time_range": {
       "ui:order": [
         "since",
-        "until"
+        "until",
+        "timezone"
       ]
     },
-    "forest_cover_trends": {
+    "Region of Interest": {
       "ui:order": [
-        "tree_cover_threshold",
-        "scale",
-        "max_pixels"
+        "groupers",
+        "roi"
       ]
     },
-    "forest_layers": {
+    "Forest Analysis": {
       "ui:order": [
-        "tree_cover_threshold",
-        "opacity"
-      ]
+        "forest_cover_trends",
+        "persist_forest_cover_data"
+      ],
+      "forest_cover_trends": {
+        "ui:order": [
+          "tree_cover_threshold",
+          "scale",
+          "max_pixels"
+        ]
+      }
     },
-    "forest_map": {
+    "Forest Change Map": {
       "ui:order": [
-        "static",
-        "legend_style",
-        "max_zoom",
-        "view_state"
-      ]
+        "forest_layers",
+        "base_map_defs",
+        "forest_map"
+      ],
+      "forest_layers": {
+        "ui:order": [
+          "tree_cover_threshold",
+          "opacity"
+        ]
+      }
     },
-    "gamm_model": {
+    "Trend Analysis": {
       "ui:order": [
-        "metric",
-        "degree_of_freedom",
-        "degree",
-        "family"
+        "gamm_model",
+        "persist_trend_data"
+      ],
+      "gamm_model": {
+        "ui:order": [
+          "metric",
+          "degree_of_freedom",
+          "degree",
+          "family"
+        ]
+      }
+    },
+    "Output Titles": {
+      "ui:order": [
+        "map_widget_title",
+        "chart_widget_title"
       ]
     },
     "ui:order": [
@@ -763,13 +950,11 @@
       "gee_project_name",
       "time_range",
       "hansen_image",
-      "groupers",
-      "roi",
-      "forest_cover_trends",
-      "forest_layers",
-      "base_map_defs",
-      "forest_map",
-      "gamm_model"
+      "Region of Interest",
+      "Forest Analysis",
+      "Forest Change Map",
+      "Trend Analysis",
+      "Output Titles"
     ]
   },
   "additionalProperties": false
