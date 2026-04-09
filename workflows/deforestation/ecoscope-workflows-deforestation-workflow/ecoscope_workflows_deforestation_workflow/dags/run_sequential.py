@@ -58,6 +58,12 @@ from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
 from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
     predict_gamm_trends as predict_gamm_trends,
 )
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    set_title_var as set_title_var,
+)
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    set_tree_cover_threshold as set_tree_cover_threshold,
+)
 
 from ..params import Params
 
@@ -179,6 +185,22 @@ def main(params: Params):
         .call()
     )
 
+    tree_cover_threshold = (
+        set_tree_cover_threshold.validate()
+        .set_task_instance_id("tree_cover_threshold")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(**(params_dict.get("tree_cover_threshold") or {}))
+        .call()
+    )
+
     forest_cover_trends = (
         extract_forest_cover_trends.validate()
         .set_task_instance_id("forest_cover_trends")
@@ -195,6 +217,7 @@ def main(params: Params):
             client=gee_project_name,
             time_range=time_range,
             image=hansen_image,
+            tree_cover_threshold=tree_cover_threshold,
             **(params_dict.get("forest_cover_trends") or {}),
         )
         .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
@@ -215,6 +238,7 @@ def main(params: Params):
             root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
             sanitize=True,
             filename_prefix="forest_cover",
+            filetypes=["parquet"],
             **(params_dict.get("persist_forest_cover_data") or {}),
         )
         .mapvalues(argnames=["df"], argvalues=forest_cover_trends)
@@ -236,6 +260,8 @@ def main(params: Params):
             client=gee_project_name,
             time_range=time_range,
             image=hansen_image,
+            tree_cover_threshold=tree_cover_threshold,
+            opacity=1.0,
             **(params_dict.get("forest_layers") or {}),
         )
         .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
@@ -341,6 +367,7 @@ def main(params: Params):
             static=False,
             max_zoom=20,
             view_state=None,
+            legend_style=None,
             **(params_dict.get("forest_map") or {}),
         )
         .mapvalues(
@@ -428,6 +455,7 @@ def main(params: Params):
             root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
             sanitize=True,
             filename_prefix="trend_predictions",
+            filetypes=["parquet"],
             **(params_dict.get("persist_trend_data") or {}),
         )
         .mapvalues(argnames=["df"], argvalues=trend_predictions)
@@ -487,7 +515,7 @@ def main(params: Params):
     )
 
     map_widget_title = (
-        set_string_var.validate()
+        set_title_var.validate()
         .set_task_instance_id("map_widget_title")
         .handle_errors()
         .with_tracing()
@@ -503,7 +531,7 @@ def main(params: Params):
     )
 
     chart_widget_title = (
-        set_string_var.validate()
+        set_title_var.validate()
         .set_task_instance_id("chart_widget_title")
         .handle_errors()
         .with_tracing()

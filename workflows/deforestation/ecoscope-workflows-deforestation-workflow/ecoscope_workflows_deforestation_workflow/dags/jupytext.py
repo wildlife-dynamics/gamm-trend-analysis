@@ -68,6 +68,12 @@ from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
 from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
     predict_gamm_trends as predict_gamm_trends,
 )
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    set_title_var as set_title_var,
+)
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    set_tree_cover_threshold as set_tree_cover_threshold,
+)
 
 # %% [markdown]
 # ## Set Workflow Details
@@ -282,13 +288,42 @@ split_roi_groups = (
 
 
 # %% [markdown]
-# ## Extract Forest Cover Trends
+# ##
+
+# %%
+# parameters
+
+tree_cover_threshold_params = dict(
+    threshold=...,
+)
+
+# %%
+# call the task
+
+
+tree_cover_threshold = (
+    set_tree_cover_threshold.set_task_instance_id("tree_cover_threshold")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(**tree_cover_threshold_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ##
 
 # %%
 # parameters
 
 forest_cover_trends_params = dict(
-    tree_cover_threshold=...,
     scale=...,
     max_pixels=...,
 )
@@ -312,6 +347,7 @@ forest_cover_trends = (
         client=gee_project_name,
         time_range=time_range,
         image=hansen_image,
+        tree_cover_threshold=tree_cover_threshold,
         **forest_cover_trends_params,
     )
     .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
@@ -319,14 +355,13 @@ forest_cover_trends = (
 
 
 # %% [markdown]
-# ## Export Forest Cover Data
+# ##
 
 # %%
 # parameters
 
 persist_forest_cover_data_params = dict(
     filename=...,
-    filetypes=...,
 )
 
 # %%
@@ -347,6 +382,7 @@ persist_forest_cover_data = (
         root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
         sanitize=True,
         filename_prefix="forest_cover",
+        filetypes=["parquet"],
         **persist_forest_cover_data_params,
     )
     .mapvalues(argnames=["df"], argvalues=forest_cover_trends)
@@ -354,15 +390,12 @@ persist_forest_cover_data = (
 
 
 # %% [markdown]
-# ## Forest Layer Style
+# ##
 
 # %%
 # parameters
 
-forest_layers_params = dict(
-    tree_cover_threshold=...,
-    opacity=...,
-)
+forest_layers_params = dict()
 
 # %%
 # call the task
@@ -383,6 +416,8 @@ forest_layers = (
         client=gee_project_name,
         time_range=time_range,
         image=hansen_image,
+        tree_cover_threshold=tree_cover_threshold,
+        opacity=1.0,
         **forest_layers_params,
     )
     .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
@@ -518,13 +553,12 @@ combined_forest_map_layers = (
 
 
 # %% [markdown]
-# ## Map Settings
+# ##
 
 # %%
 # parameters
 
 forest_map_params = dict(
-    legend_style=...,
     widget_id=...,
 )
 
@@ -544,7 +578,12 @@ forest_map = (
         unpack_depth=1,
     )
     .partial(
-        title=None, static=False, max_zoom=20, view_state=None, **forest_map_params
+        title=None,
+        static=False,
+        max_zoom=20,
+        view_state=None,
+        legend_style=None,
+        **forest_map_params,
     )
     .mapvalues(
         argnames=["tile_layers", "geo_layers"], argvalues=combined_forest_map_layers
@@ -588,7 +627,7 @@ persist_forest_map = (
 
 
 # %% [markdown]
-# ## Trend Fitting
+# ##
 
 # %%
 # parameters
@@ -657,14 +696,13 @@ trend_predictions = (
 
 
 # %% [markdown]
-# ## Export Trend Data
+# ##
 
 # %%
 # parameters
 
 persist_trend_data_params = dict(
     filename=...,
-    filetypes=...,
 )
 
 # %%
@@ -685,6 +723,7 @@ persist_trend_data = (
         root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
         sanitize=True,
         filename_prefix="trend_predictions",
+        filetypes=["parquet"],
         **persist_trend_data_params,
     )
     .mapvalues(argnames=["df"], argvalues=trend_predictions)
@@ -774,13 +813,13 @@ persist_forest_cover = (
 
 
 # %% [markdown]
-# ## Map Title
+# ##
 
 # %%
 # parameters
 
 map_widget_title_params = dict(
-    var=...,
+    title=...,
 )
 
 # %%
@@ -788,7 +827,7 @@ map_widget_title_params = dict(
 
 
 map_widget_title = (
-    set_string_var.set_task_instance_id("map_widget_title")
+    set_title_var.set_task_instance_id("map_widget_title")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -804,13 +843,13 @@ map_widget_title = (
 
 
 # %% [markdown]
-# ## Chart Title
+# ##
 
 # %%
 # parameters
 
 chart_widget_title_params = dict(
-    var=...,
+    title=...,
 )
 
 # %%
@@ -818,7 +857,7 @@ chart_widget_title_params = dict(
 
 
 chart_widget_title = (
-    set_string_var.set_task_instance_id("chart_widget_title")
+    set_title_var.set_task_instance_id("chart_widget_title")
     .handle_errors()
     .with_tracing()
     .skipif(

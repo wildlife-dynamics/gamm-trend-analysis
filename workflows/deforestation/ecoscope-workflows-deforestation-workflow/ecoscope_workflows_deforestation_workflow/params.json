@@ -134,15 +134,25 @@
       "type": "object",
       "title": "Load Region of Interest"
     },
+    "tree_cover_threshold": {
+      "additionalProperties": false,
+      "properties": {
+        "threshold": {
+          "default": 60.0,
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "title": "Threshold",
+          "type": "number",
+          "description": "Minimum tree cover percentage (0\u2013100) to classify a pixel as forest."
+        }
+      },
+      "type": "object",
+      "required": [],
+      "title": ""
+    },
     "forest_cover_trends": {
       "additionalProperties": false,
       "properties": {
-        "tree_cover_threshold": {
-          "default": 60.0,
-          "title": "Tree Cover Threshold",
-          "type": "number",
-          "description": "Minimum tree cover percentage (0-100)"
-        },
         "scale": {
           "default": 30,
           "title": "Scale",
@@ -160,51 +170,7 @@
       },
       "required": [],
       "type": "object",
-      "title": "Extract Forest Cover Trends"
-    },
-    "persist_forest_cover_data": {
-      "additionalProperties": false,
-      "properties": {
-        "filetypes": {
-          "default": [
-            "csv"
-          ],
-          "items": {
-            "enum": [
-              "csv",
-              "gpkg",
-              "geoparquet",
-              "parquet"
-            ],
-            "type": "string"
-          },
-          "title": "Filetypes",
-          "type": "array",
-          "description": "The output format",
-          "uniqueItems": true
-        }
-      },
-      "required": [],
-      "type": "object",
-      "title": "Export Forest Cover Data"
-    },
-    "forest_layers": {
-      "additionalProperties": false,
-      "properties": {
-        "tree_cover_threshold": {
-          "default": 60.0,
-          "title": "Tree Cover Threshold",
-          "type": "number"
-        },
-        "opacity": {
-          "default": 1.0,
-          "title": "Opacity",
-          "type": "number"
-        }
-      },
-      "required": [],
-      "type": "object",
-      "title": "Forest Layer Style"
+      "title": ""
     },
     "base_map_defs": {
       "additionalProperties": false,
@@ -415,27 +381,6 @@
       "required": [],
       "title": "Base Maps"
     },
-    "forest_map": {
-      "additionalProperties": false,
-      "properties": {
-        "legend_style": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/LegendStyle"
-            }
-          ],
-          "default": {
-            "placement": "bottom-right"
-          },
-          "title": "Legend Style",
-          "description": "Additional arguments for configuring the legend.",
-          "ecoscope:advanced": true
-        }
-      },
-      "type": "object",
-      "required": [],
-      "title": "Map Settings"
-    },
     "gamm_model": {
       "additionalProperties": false,
       "properties": {
@@ -482,61 +427,35 @@
       },
       "required": [],
       "type": "object",
-      "title": "Trend Fitting"
-    },
-    "persist_trend_data": {
-      "additionalProperties": false,
-      "properties": {
-        "filetypes": {
-          "default": [
-            "csv"
-          ],
-          "items": {
-            "enum": [
-              "csv",
-              "gpkg",
-              "geoparquet",
-              "parquet"
-            ],
-            "type": "string"
-          },
-          "title": "Filetypes",
-          "type": "array",
-          "description": "The output format",
-          "uniqueItems": true
-        }
-      },
-      "required": [],
-      "type": "object",
-      "title": "Export Trend Data"
+      "title": ""
     },
     "map_widget_title": {
       "additionalProperties": false,
       "properties": {
-        "var": {
+        "title": {
           "title": "",
           "type": "string"
         }
       },
       "required": [
-        "var"
+        "title"
       ],
       "type": "object",
-      "title": "Map Title"
+      "title": ""
     },
     "chart_widget_title": {
       "additionalProperties": false,
       "properties": {
-        "var": {
+        "title": {
           "title": "",
           "type": "string"
         }
       },
       "required": [
-        "var"
+        "title"
       ],
       "type": "object",
-      "title": "Chart Title"
+      "title": ""
     }
   },
   "$defs": {
@@ -728,26 +647,6 @@
       ],
       "title": "Remote URL",
       "type": "object"
-    },
-    "LegendStyle": {
-      "description": "Additional legend configuration options applied per map, rather than per layer",
-      "properties": {
-        "placement": {
-          "default": "bottom-right",
-          "ecoscope:advanced": true,
-          "enum": [
-            "top-left",
-            "top-right",
-            "bottom-left",
-            "bottom-right",
-            "fill"
-          ],
-          "title": "Placement",
-          "type": "string"
-        }
-      },
-      "title": "LegendStyle",
-      "type": "object"
     }
   },
   "uiSchema": {
@@ -766,15 +665,8 @@
     },
     "forest_cover_trends": {
       "ui:order": [
-        "tree_cover_threshold",
         "scale",
         "max_pixels"
-      ]
-    },
-    "forest_layers": {
-      "ui:order": [
-        "tree_cover_threshold",
-        "opacity"
       ]
     },
     "gamm_model": {
@@ -792,13 +684,10 @@
       "hansen_image",
       "groupers",
       "roi",
+      "tree_cover_threshold",
       "forest_cover_trends",
-      "persist_forest_cover_data",
-      "forest_layers",
       "base_map_defs",
-      "forest_map",
       "gamm_model",
-      "persist_trend_data",
       "map_widget_title",
       "chart_widget_title"
     ]

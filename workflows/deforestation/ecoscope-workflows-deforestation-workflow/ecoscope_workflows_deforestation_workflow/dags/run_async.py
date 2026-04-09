@@ -59,6 +59,12 @@ from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
 from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
     predict_gamm_trends as predict_gamm_trends,
 )
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    set_title_var as set_title_var,
+)
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    set_tree_cover_threshold as set_tree_cover_threshold,
+)
 
 from ..params import Params
 
@@ -74,10 +80,12 @@ def main(params: Params):
         "groupers": [],
         "roi": [],
         "split_roi_groups": ["roi", "groupers"],
+        "tree_cover_threshold": [],
         "forest_cover_trends": [
             "gee_project_name",
             "time_range",
             "hansen_image",
+            "tree_cover_threshold",
             "split_roi_groups",
         ],
         "persist_forest_cover_data": ["forest_cover_trends"],
@@ -85,6 +93,7 @@ def main(params: Params):
             "gee_project_name",
             "time_range",
             "hansen_image",
+            "tree_cover_threshold",
             "split_roi_groups",
         ],
         "base_map_defs": [],
@@ -233,6 +242,22 @@ def main(params: Params):
             | (params_dict.get("split_roi_groups") or {}),
             method="call",
         ),
+        "tree_cover_threshold": Node(
+            async_task=set_tree_cover_threshold.validate()
+            .set_task_instance_id("tree_cover_threshold")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial=(params_dict.get("tree_cover_threshold") or {}),
+            method="call",
+        ),
         "forest_cover_trends": Node(
             async_task=extract_forest_cover_trends.validate()
             .set_task_instance_id("forest_cover_trends")
@@ -250,6 +275,7 @@ def main(params: Params):
                 "client": DependsOn("gee_project_name"),
                 "time_range": DependsOn("time_range"),
                 "image": DependsOn("hansen_image"),
+                "tree_cover_threshold": DependsOn("tree_cover_threshold"),
             }
             | (params_dict.get("forest_cover_trends") or {}),
             method="mapvalues",
@@ -274,6 +300,9 @@ def main(params: Params):
                 "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
                 "sanitize": True,
                 "filename_prefix": "forest_cover",
+                "filetypes": [
+                    "parquet",
+                ],
             }
             | (params_dict.get("persist_forest_cover_data") or {}),
             method="mapvalues",
@@ -299,6 +328,8 @@ def main(params: Params):
                 "client": DependsOn("gee_project_name"),
                 "time_range": DependsOn("time_range"),
                 "image": DependsOn("hansen_image"),
+                "tree_cover_threshold": DependsOn("tree_cover_threshold"),
+                "opacity": 1.0,
             }
             | (params_dict.get("forest_layers") or {}),
             method="mapvalues",
@@ -428,6 +459,7 @@ def main(params: Params):
                 "static": False,
                 "max_zoom": 20,
                 "view_state": None,
+                "legend_style": None,
             }
             | (params_dict.get("forest_map") or {}),
             method="mapvalues",
@@ -529,6 +561,9 @@ def main(params: Params):
                 "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
                 "sanitize": True,
                 "filename_prefix": "trend_predictions",
+                "filetypes": [
+                    "parquet",
+                ],
             }
             | (params_dict.get("persist_trend_data") or {}),
             method="mapvalues",
@@ -608,7 +643,7 @@ def main(params: Params):
             },
         ),
         "map_widget_title": Node(
-            async_task=set_string_var.validate()
+            async_task=set_title_var.validate()
             .set_task_instance_id("map_widget_title")
             .handle_errors()
             .with_tracing()
@@ -624,7 +659,7 @@ def main(params: Params):
             method="call",
         ),
         "chart_widget_title": Node(
-            async_task=set_string_var.validate()
+            async_task=set_title_var.validate()
             .set_task_instance_id("chart_widget_title")
             .handle_errors()
             .with_tracing()

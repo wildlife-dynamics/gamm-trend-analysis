@@ -25,14 +25,20 @@ class HansenImage(BaseModel):
     var: str = Field(..., title="")
 
 
-class ForestCoverTrends(BaseModel):
+class TreeCoverThreshold(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    tree_cover_threshold: Optional[float] = Field(
+    threshold: Optional[confloat(ge=0.0, le=100.0)] = Field(
         60.0,
-        description="Minimum tree cover percentage (0-100)",
-        title="Tree Cover Threshold",
+        description="Minimum tree cover percentage (0–100) to classify a pixel as forest.",
+        title="Threshold",
+    )
+
+
+class ForestCoverTrends(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
     )
     scale: Optional[int] = Field(
         30, description="Pixel scale in meters for reduction", title="Scale"
@@ -40,30 +46,6 @@ class ForestCoverTrends(BaseModel):
     max_pixels: Optional[float] = Field(
         1000000000.0, description="Maximum pixels for reduction", title="Max Pixels"
     )
-
-
-class Filetype(str, Enum):
-    csv = "csv"
-    gpkg = "gpkg"
-    geoparquet = "geoparquet"
-    parquet = "parquet"
-
-
-class PersistForestCoverData(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    filetypes: Optional[List[Filetype]] = Field(
-        ["csv"], description="The output format", title="Filetypes"
-    )
-
-
-class ForestLayers(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    tree_cover_threshold: Optional[float] = Field(60.0, title="Tree Cover Threshold")
-    opacity: Optional[float] = Field(1.0, title="Opacity")
 
 
 class Url(str, Enum):
@@ -266,27 +248,18 @@ class GammModel(BaseModel):
     )
 
 
-class PersistTrendData(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    filetypes: Optional[List[Filetype]] = Field(
-        ["csv"], description="The output format", title="Filetypes"
-    )
-
-
 class MapWidgetTitle(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    var: str = Field(..., title="")
+    title: str = Field(..., title="")
 
 
 class ChartWidgetTitle(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    var: str = Field(..., title="")
+    title: str = Field(..., title="")
 
 
 class GoogleEarthEngineConnection(BaseModel):
@@ -357,18 +330,6 @@ class RemoteFileSpatialFeatures(BaseModel):
     )
 
 
-class Placement(str, Enum):
-    top_left = "top-left"
-    top_right = "top-right"
-    bottom_left = "bottom-left"
-    bottom_right = "bottom-right"
-    fill = "fill"
-
-
-class LegendStyle(BaseModel):
-    placement: Optional[Placement] = Field("bottom-right", title="Placement")
-
-
 class GeeProjectName(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -409,19 +370,6 @@ class Roi(BaseModel):
     ] = Field(..., title="Spatial Feature Data Source")
 
 
-class ForestMap(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    legend_style: Optional[LegendStyle] = Field(
-        default_factory=lambda: LegendStyle.model_validate(
-            {"placement": "bottom-right"}
-        ),
-        description="Additional arguments for configuring the legend.",
-        title="Legend Style",
-    )
-
-
 class Params(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -440,18 +388,9 @@ class Params(BaseModel):
     hansen_image: Optional[HansenImage] = Field(None, title="Hansen Dataset")
     groupers: Optional[Groupers] = Field(None, title="Set Groupers")
     roi: Optional[Roi] = Field(None, title="Load Region of Interest")
-    forest_cover_trends: Optional[ForestCoverTrends] = Field(
-        None, title="Extract Forest Cover Trends"
-    )
-    persist_forest_cover_data: Optional[PersistForestCoverData] = Field(
-        None, title="Export Forest Cover Data"
-    )
-    forest_layers: Optional[ForestLayers] = Field(None, title="Forest Layer Style")
+    tree_cover_threshold: Optional[TreeCoverThreshold] = Field(None, title="")
+    forest_cover_trends: Optional[ForestCoverTrends] = Field(None, title="")
     base_map_defs: Optional[BaseMapDefs] = Field(None, title="Base Maps")
-    forest_map: Optional[ForestMap] = Field(None, title="Map Settings")
-    gamm_model: Optional[GammModel] = Field(None, title="Trend Fitting")
-    persist_trend_data: Optional[PersistTrendData] = Field(
-        None, title="Export Trend Data"
-    )
-    map_widget_title: Optional[MapWidgetTitle] = Field(None, title="Map Title")
-    chart_widget_title: Optional[ChartWidgetTitle] = Field(None, title="Chart Title")
+    gamm_model: Optional[GammModel] = Field(None, title="")
+    map_widget_title: Optional[MapWidgetTitle] = Field(None, title="")
+    chart_widget_title: Optional[ChartWidgetTitle] = Field(None, title="")

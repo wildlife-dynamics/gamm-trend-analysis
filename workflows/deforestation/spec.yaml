@@ -42,11 +42,13 @@ rjsf-overrides:
     hansen_image.properties.var.default: "UMD/hansen/global_forest_change_2024_v1_12"
     hansen_image.properties.var.description: "Hansen Global Forest Change dataset image name."
 
-    map_widget_title.properties.var.default: "Forest Change Map"
-    map_widget_title.properties.var.title: "Map Title"
+    Forest Analysis.properties.tree_cover_threshold.properties.threshold.default: 60.0
 
-    chart_widget_title.properties.var.default: "Forest Cover Trend Chart"
-    chart_widget_title.properties.var.title: "Chart Title"
+    Dashboard.properties.map_widget_title.properties.title.default: "Forest Change Map"
+    Dashboard.properties.map_widget_title.properties.title.description: "Title displayed on the forest change map."
+
+    Dashboard.properties.chart_widget_title.properties.title.default: "Forest Cover Trend Chart"
+    Dashboard.properties.chart_widget_title.properties.title.description: "Title displayed on the forest cover trend chart."
 
     time_range.properties.since.default: "2000-01-01T00:00:00.000Z"
     time_range.properties.since.description: >-
@@ -54,14 +56,6 @@ rjsf-overrides:
     time_range.properties.until.description: >-
       End year of the analysis. Depends on the Hansen dataset selected
       (e.g. UMD/hansen/global_forest_change_2024_v1_12 covers up to 2024).
-
-    # forest_cover_chart.properties.layout_style.properties.title.default: "Forest Cover Survival Area - GAM Trend"
-
-    persist_forest_cover_data.properties.filetypes.default: ["parquet"]
-    persist_forest_cover_data.properties.filetypes.items.enum: ["csv", "parquet"]
-
-    persist_trend_data.properties.filetypes.default: ["parquet"]
-    persist_trend_data.properties.filetypes.items.enum: ["csv", "parquet"]
 task-instance-defaults:
   skipif:
     conditions:
@@ -89,140 +83,139 @@ workflow:
     id: hansen_image
     task: set_string_var
 
-  - title: Region of Interest
-    type: task-group
-    description: >-
-      Define the geographic area and grouping for the analysis.
-    tasks:
-      - name: Set Groupers
-        id: groupers
-        task: set_groupers
+  - name: Set Groupers
+    id: groupers
+    task: set_groupers
 
-      - name: Load Region of Interest
-        id: roi
-        task: load_spatial_features_group
+  - name: Load Region of Interest
+    id: roi
+    task: load_spatial_features_group
 
-      - name: ""
-        id: split_roi_groups
-        task: split_groups
-        partial:
-          df: ${{ workflow.roi.return }}
-          groupers: ${{ workflow.groupers.return }}
+  - name: ""
+    id: split_roi_groups
+    task: split_groups
+    partial:
+      df: ${{ workflow.roi.return }}
+      groupers: ${{ workflow.groupers.return }}
 
   - title: Forest Analysis
     type: task-group
-    description: >-
-      Configure forest cover extraction from the Hansen dataset and data export.
+    description: "" 
     tasks:
-      - name: Extract Forest Cover Trends
+      - name: ""
+        id: tree_cover_threshold
+        task: set_tree_cover_threshold
+
+      - name: ""
         id: forest_cover_trends
         task: extract_forest_cover_trends
         partial:
           client: ${{ workflow.gee_project_name.return }}
           time_range: ${{ workflow.time_range.return }}
           image: ${{ workflow.hansen_image.return }}
+          tree_cover_threshold: ${{ workflow.tree_cover_threshold.return }}
         mapvalues:
           argnames: aoi
           argvalues: ${{ workflow.split_roi_groups.return }}
 
-      - name: Export Forest Cover Data
-        id: persist_forest_cover_data
-        task: persist_df_wrapper
-        skipif:
-          conditions:
-            - never
-        partial:
-          root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
-          sanitize: true
-          filename_prefix: forest_cover
-        mapvalues:
-          argnames: df
-          argvalues: ${{ workflow.forest_cover_trends.return }}
+  - name: ""
+    id: persist_forest_cover_data
+    task: persist_df_wrapper
+    skipif:
+      conditions:
+        - never
+    partial:
+      root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+      sanitize: true
+      filename_prefix: forest_cover
+      filetypes:
+        - parquet
+    mapvalues:
+      argnames: df
+      argvalues: ${{ workflow.forest_cover_trends.return }}
 
-  - title: Forest Change Map
-    type: task-group
-    description: >-
-      Configure the forest change map layers and visualization settings.
-    tasks:
-      - name: Forest Layer Style
-        id: forest_layers
-        task: create_forest_layers
-        partial:
-          client: ${{ workflow.gee_project_name.return }}
-          time_range: ${{ workflow.time_range.return }}
-          image: ${{ workflow.hansen_image.return }}
-        mapvalues:
-          argnames: aoi
-          argvalues: ${{ workflow.split_roi_groups.return }}
+  - name: ""
+    id: forest_layers
+    task: create_forest_layers
+    partial:
+      client: ${{ workflow.gee_project_name.return }}
+      time_range: ${{ workflow.time_range.return }}
+      image: ${{ workflow.hansen_image.return }}
+      tree_cover_threshold: ${{ workflow.tree_cover_threshold.return }}
+      opacity: 1.0
+    mapvalues:
+      argnames: aoi
+      argvalues: ${{ workflow.split_roi_groups.return }}
 
-      - name: Base Maps
-        id: base_map_defs
-        task: set_base_maps_pydeck
+  - name: Base Maps
+    id: base_map_defs
+    task: set_base_maps_pydeck
 
-      - name: ""
-        id: merged_forest_layers
-        task: merge_tile_layers
-        partial:
-          base_layers: ${{ workflow.base_map_defs.return }}
-        mapvalues:
-          argnames: overlay
-          argvalues: ${{ workflow.forest_layers.return }}
+  - name: ""
+    id: merged_forest_layers
+    task: merge_tile_layers
+    partial:
+      base_layers: ${{ workflow.base_map_defs.return }}
+    mapvalues:
+      argnames: overlay
+      argvalues: ${{ workflow.forest_layers.return }}
 
-      - name: ""
-        id: roi_layer
-        task: create_polygon_layer_pydeck
-        partial:
-          layer_style:
-            filled: false
-            stroked: true
-            get_line_color: [127, 201, 127, 255]
-            get_line_width: 1
-          legend:
-            title: ROI Boundary
-            values:
-              - label: ROI Boundary
-                color: rgba(127, 201, 127, 1)
-        mapvalues:
-          argnames: geodataframe
-          argvalues: ${{ workflow.split_roi_groups.return }}
+  - name: ""
+    id: roi_layer
+    task: create_polygon_layer_pydeck
+    partial:
+      layer_style:
+        filled: false
+        stroked: true
+        get_line_color: [127, 201, 127, 255]
+        get_line_width: 1
+      legend:
+        title: ROI Boundary
+        values:
+          - label: ROI Boundary
+            color: rgba(127, 201, 127, 1)
+    mapvalues:
+      argnames: geodataframe
+      argvalues: ${{ workflow.split_roi_groups.return }}
 
-      - name: ""
-        id: combined_forest_map_layers
-        task: groupbykey
-        partial:
-          iterables:
-            - ${{ workflow.merged_forest_layers.return }}
-            - ${{ workflow.roi_layer.return }}
+  - name: ""
+    id: combined_forest_map_layers
+    task: groupbykey
+    partial:
+      iterables:
+        - ${{ workflow.merged_forest_layers.return }}
+        - ${{ workflow.roi_layer.return }}
 
-      - name: Map Settings
-        id: forest_map
-        task: draw_map
-        partial:
-          title: null
-          static: false
-          max_zoom: 20
-          view_state: null
-        mapvalues:
-          argnames: [tile_layers, geo_layers]
-          argvalues: ${{ workflow.combined_forest_map_layers.return }}
+  - name: ""
+    id: forest_map
+    task: draw_map
+    partial:
+      title: null
+      static: false
+      max_zoom: 20
+      view_state: null
+      legend_style: null
+    mapvalues:
+      argnames: [tile_layers, geo_layers]
+      argvalues: ${{ workflow.combined_forest_map_layers.return }}
 
-      - name: ""
-        id: persist_forest_map
-        task: persist_text
-        partial:
-          root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
-          filename_suffix: map
-          text: ${{ workflow.forest_map.return }}
-        mapvalues:
-          argnames: text
-          argvalues: ${{ workflow.forest_map.return }}
+  - name: ""
+    id: persist_forest_map
+    task: persist_text
+    partial:
+      root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+      filename_suffix: map
+      text: ${{ workflow.forest_map.return }}
+    mapvalues:
+      argnames: text
+      argvalues: ${{ workflow.forest_map.return }}
 
   - title: Trend Analysis
     type: task-group
     description: >-
-      Configure the GAM trend fitting parameters, data export, and chart output.
+      Configure the GAM trend fitting parameters.
     tasks:
-      - name: Trend Fitting
+      - name: ""
         id: gamm_model
         task: fit_gamm_model
         partial:
@@ -232,6 +225,10 @@ workflow:
           lower_bound: null
           upper_bound: null
           optimize_alpha: true
+          # metric: "AIC"
+          # degree_of_freedom: 10
+          # degree: 3
+          # family: "Gaussian"
         mapvalues:
           argnames: dataframe
           argvalues: ${{ workflow.forest_cover_trends.return }}
@@ -246,7 +243,7 @@ workflow:
           argnames: model_params
           argvalues: ${{ workflow.gamm_model.return }}
 
-      - name: Export Trend Data
+      - name: ""
         id: persist_trend_data
         task: persist_df_wrapper
         skipif:
@@ -256,6 +253,8 @@ workflow:
           root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
           sanitize: true
           filename_prefix: trend_predictions
+          filetypes:
+            - parquet
         mapvalues:
           argnames: df
           argvalues: ${{ workflow.trend_predictions.return }}
@@ -297,60 +296,59 @@ workflow:
           argnames: text
           argvalues: ${{ workflow.forest_cover_chart.return }}
 
-  - title: Output Titles
+  - title: Dashboard
     type: task-group
-    description: >-
-      Configure the titles displayed on each dashboard output.
+    description: Configure the dashboard output titles.
     tasks:
-      - name: Map Title
+      - name: ""
         id: map_widget_title
-        task: set_string_var
+        task: set_title_var
 
-      - name: Chart Title
+      - name: ""
         id: chart_widget_title
-        task: set_string_var
+        task: set_title_var
 
-      - name: ""
-        id: forest_map_widget
-        task: create_map_widget_single_view
-        skipif:
-          conditions:
-            - never
-        partial:
-          title: ${{ workflow.map_widget_title.return }}
-        map:
-          argnames: [view, data]
-          argvalues: ${{ workflow.persist_forest_map.return }}
+  - name: ""
+    id: forest_map_widget
+    task: create_map_widget_single_view
+    skipif:
+      conditions:
+        - never
+    partial:
+      title: ${{ workflow.map_widget_title.return }}
+    map:
+      argnames: [view, data]
+      argvalues: ${{ workflow.persist_forest_map.return }}
 
-      - name: ""
-        id: grouped_forest_map
-        task: merge_widget_views
-        skipif:
-          conditions:
-            - never
-        partial:
-          widgets: ${{ workflow.forest_map_widget.return }}
+  - name: ""
+    id: grouped_forest_map
+    task: merge_widget_views
+    skipif:
+      conditions:
+        - never
+    partial:
+      widgets: ${{ workflow.forest_map_widget.return }}
 
-      - name: ""
-        id: forest_cover_widget
-        task: create_plot_widget_single_view
-        skipif:
-          conditions:
-            - never
-        partial:
-          title: ${{ workflow.chart_widget_title.return }}
-        map:
-          argnames: [view, data]
-          argvalues: ${{ workflow.persist_forest_cover.return }}
+  - name: ""
+    id: forest_cover_widget
+    task: create_plot_widget_single_view
+    skipif:
+      conditions:
+        - never
+    partial:
+      title: ${{ workflow.chart_widget_title.return }}
+    map:
+      argnames: [view, data]
+      argvalues: ${{ workflow.persist_forest_cover.return }}
 
-      - name: ""
-        id: grouped_forest_cover
-        task: merge_widget_views
-        skipif:
-          conditions:
-            - never
-        partial:
-          widgets: ${{ workflow.forest_cover_widget.return }}
+  - name: ""
+    id: grouped_forest_cover
+    task: merge_widget_views
+    skipif:
+      conditions:
+        - never
+    partial:
+      widgets: ${{ workflow.forest_cover_widget.return }}
 
   - name: ""
     id: gamm_dashboard

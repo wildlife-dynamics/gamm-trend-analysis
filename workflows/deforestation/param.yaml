@@ -6,10 +6,6 @@ gee_project_name:
     name: ecoscope_poc
 hansen_image:
   var: "UMD/hansen/global_forest_change_2024_v1_12"
-map_widget_title:
-  var: "Forest Change Map"
-chart_widget_title:
-  var: "Forest Cover Trend Chart"
 time_range:
   since: "2000-01-01T00:00:00.000Z"
   until: "2024-12-31T23:59:59.000Z"
@@ -20,3 +16,9 @@ roi:
 groupers:
   groupers:
     - index_name: "name"
+tree_cover_threshold:
+  threshold: 60.0
+map_widget_title:
+  title: "Forest Change Map"
+chart_widget_title:
+  title: "Forest Cover Trend Chart"
