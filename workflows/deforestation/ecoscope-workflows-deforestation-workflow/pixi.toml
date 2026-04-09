@@ -3,6 +3,7 @@
 [workspace]
 name = "ecoscope-workflows-deforestation-workflow"
 channels = [
+    "file:///tmp/ecoscope-workflows-custom/release/artifacts/",
     "https://repo.prefix.dev/ecoscope-workflows-custom/",
     "https://repo.prefix.dev/ecoscope-workflows/",
     "conda-forge",
@@ -28,12 +29,12 @@ version = "0.22.16.*"
 channel = "https://repo.prefix.dev/ecoscope-workflows/"
 
 [dependencies.ecoscope-workflows-ext-custom]
-version = "==0.0.37"
+version = "==0.0.41"
 channel = "https://repo.prefix.dev/ecoscope-workflows-custom/"
 
 [dependencies.ecoscope-workflows-ext-gamm-trend-analysis]
-version = "==0.0.0"
-channel = "https://repo.prefix.dev/ecoscope-workflows-custom/"
+version = "*"
+channel = "file:///tmp/ecoscope-workflows-custom/release/artifacts/"
 
 [feature.runner.dependencies.ecoscope-workflows-runner]
 version = "0.22.16.*"
@@ -129,5 +130,5 @@ solve-group = "test"
 no-default-feature = true
 
 [tasks]
-docker-build = "docker buildx build -t ecoscope-workflows-deforestation-workflow ."
+docker-build = "mkdir -p .tmp/ecoscope-workflows/release/artifacts/\n&& cp -r /tmp/ecoscope-workflows/release/artifacts/* .tmp/ecoscope-workflows/release/artifacts/\n&& docker buildx build -t ecoscope-workflows-deforestation-workflow .\n"
 ecoscope-workflows-deforestation-workflow = "python -m ecoscope_workflows_deforestation_workflow.cli"

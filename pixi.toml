@@ -3,7 +3,7 @@ name = "gamm-trend-analysis"
 channels = [
   # Uncomment the following lines to use local channels for development.
   # "file:///tmp/ecoscope-workflows/release/artifacts/",
-  # "file:///tmp/ecoscope-workflows-custom/release/artifacts/",
+  "file:///tmp/ecoscope-workflows-custom/release/artifacts/",
   'https://repo.prefix.dev/ecoscope-workflows/',
   'https://repo.prefix.dev/ecoscope-workflows-custom/',
   'conda-forge',
@@ -19,7 +19,7 @@ hatch = "*"
 [feature.compile.dependencies]
 # Include this if you add new tasks and the package has been built
 ecoscope-workflows-core = "0.22.16.*"
-ecoscope-workflows-ext-custom = "0.0.37.*"
+ecoscope-workflows-ext-custom = "0.0.41.*"
 ecoscope-workflows-ext-ecoscope = "0.22.16.*"
 ecoscope-workflows-ext-gamm-trend-analysis = "*"
 

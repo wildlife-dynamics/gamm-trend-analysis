@@ -12,14 +12,19 @@
 
 import os
 
+from ecoscope_workflows_core.tasks.config import set_string_var as set_string_var
 from ecoscope_workflows_core.tasks.config import (
     set_workflow_details as set_workflow_details,
 )
 from ecoscope_workflows_core.tasks.filter import set_time_range as set_time_range
+from ecoscope_workflows_core.tasks.groupby import groupbykey as groupbykey
 from ecoscope_workflows_core.tasks.groupby import set_groupers as set_groupers
 from ecoscope_workflows_core.tasks.groupby import split_groups as split_groups
 from ecoscope_workflows_core.tasks.io import persist_text as persist_text
 from ecoscope_workflows_core.tasks.io import set_gee_connection as set_gee_connection
+from ecoscope_workflows_core.tasks.results import (
+    create_map_widget_single_view as create_map_widget_single_view,
+)
 from ecoscope_workflows_core.tasks.results import (
     create_plot_widget_single_view as create_plot_widget_single_view,
 )
@@ -32,11 +37,27 @@ from ecoscope_workflows_core.tasks.skip import (
 )
 from ecoscope_workflows_core.tasks.skip import any_is_empty_df as any_is_empty_df
 from ecoscope_workflows_core.tasks.skip import never as never
+from ecoscope_workflows_ext_custom.tasks.io import (
+    persist_df_wrapper as persist_df_wrapper,
+)
+from ecoscope_workflows_ext_custom.tasks.results import (
+    create_polygon_layer_pydeck as create_polygon_layer_pydeck,
+)
+from ecoscope_workflows_ext_custom.tasks.results import draw_map as draw_map
+from ecoscope_workflows_ext_custom.tasks.results import (
+    merge_tile_layers as merge_tile_layers,
+)
+from ecoscope_workflows_ext_custom.tasks.results import (
+    set_base_maps_pydeck as set_base_maps_pydeck,
+)
 from ecoscope_workflows_ext_ecoscope.tasks.io import (
     load_spatial_features_group as load_spatial_features_group,
 )
 from ecoscope_workflows_ext_ecoscope.tasks.results import (
     draw_historic_timeseries as draw_historic_timeseries,
+)
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    create_forest_layers as create_forest_layers,
 )
 from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
     extract_forest_cover_trends as extract_forest_cover_trends,
@@ -46,6 +67,12 @@ from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
 )
 from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
     predict_gamm_trends as predict_gamm_trends,
+)
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    set_title_var as set_title_var,
+)
+from ecoscope_workflows_ext_gamm_trend_analysis.tasks import (
+    set_tree_cover_threshold as set_tree_cover_threshold,
 )
 
 # %% [markdown]
@@ -116,7 +143,11 @@ gee_project_name = (
 # %%
 # parameters
 
-time_range_params = dict()
+time_range_params = dict(
+    since=...,
+    until=...,
+    timezone=...,
+)
 
 # %%
 # call the task
@@ -133,18 +164,37 @@ time_range = (
         ],
         unpack_depth=1,
     )
-    .partial(
-        time_format="%d %b %Y %H:%M:%S %Z",
-        timezone={
-            "label": "UTC",
-            "tzCode": "UTC",
-            "name": "Universal Coordinated Time",
-            "utc": "+00:00",
-        },
-        since="2000-01-01T00:00:00.000Z",
-        until="2023-12-31T23:59:59.000Z",
-        **time_range_params,
+    .partial(time_format="%Y", **time_range_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ## Hansen Dataset
+
+# %%
+# parameters
+
+hansen_image_params = dict(
+    var=...,
+)
+
+# %%
+# call the task
+
+
+hansen_image = (
+    set_string_var.set_task_instance_id("hansen_image")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
     )
+    .partial(**hansen_image_params)
     .call()
 )
 
@@ -210,7 +260,7 @@ roi = (
 
 
 # %% [markdown]
-# ## Split ROIs by Group
+# ##
 
 # %%
 # parameters
@@ -238,13 +288,42 @@ split_roi_groups = (
 
 
 # %% [markdown]
-# ## Extract Forest Cover Trends
+# ##
+
+# %%
+# parameters
+
+tree_cover_threshold_params = dict(
+    threshold=...,
+)
+
+# %%
+# call the task
+
+
+tree_cover_threshold = (
+    set_tree_cover_threshold.set_task_instance_id("tree_cover_threshold")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(**tree_cover_threshold_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ##
 
 # %%
 # parameters
 
 forest_cover_trends_params = dict(
-    tree_cover_threshold=...,
     scale=...,
     max_pixels=...,
 )
@@ -264,13 +343,291 @@ forest_cover_trends = (
         ],
         unpack_depth=1,
     )
-    .partial(client=gee_project_name, **forest_cover_trends_params)
+    .partial(
+        client=gee_project_name,
+        time_range=time_range,
+        image=hansen_image,
+        tree_cover_threshold=tree_cover_threshold,
+        **forest_cover_trends_params,
+    )
     .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
 )
 
 
 # %% [markdown]
-# ## Fit GAMM Model
+# ##
+
+# %%
+# parameters
+
+persist_forest_cover_data_params = dict(
+    filename=...,
+)
+
+# %%
+# call the task
+
+
+persist_forest_cover_data = (
+    persist_df_wrapper.set_task_instance_id("persist_forest_cover_data")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            never,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+        sanitize=True,
+        filename_prefix="forest_cover",
+        filetypes=["parquet"],
+        **persist_forest_cover_data_params,
+    )
+    .mapvalues(argnames=["df"], argvalues=forest_cover_trends)
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+forest_layers_params = dict()
+
+# %%
+# call the task
+
+
+forest_layers = (
+    create_forest_layers.set_task_instance_id("forest_layers")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        client=gee_project_name,
+        time_range=time_range,
+        image=hansen_image,
+        tree_cover_threshold=tree_cover_threshold,
+        opacity=1.0,
+        **forest_layers_params,
+    )
+    .mapvalues(argnames=["aoi"], argvalues=split_roi_groups)
+)
+
+
+# %% [markdown]
+# ## Base Maps
+
+# %%
+# parameters
+
+base_map_defs_params = dict(
+    base_maps=...,
+)
+
+# %%
+# call the task
+
+
+base_map_defs = (
+    set_base_maps_pydeck.set_task_instance_id("base_map_defs")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(**base_map_defs_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+merged_forest_layers_params = dict()
+
+# %%
+# call the task
+
+
+merged_forest_layers = (
+    merge_tile_layers.set_task_instance_id("merged_forest_layers")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(base_layers=base_map_defs, **merged_forest_layers_params)
+    .mapvalues(argnames=["overlay"], argvalues=forest_layers)
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+roi_layer_params = dict()
+
+# %%
+# call the task
+
+
+roi_layer = (
+    create_polygon_layer_pydeck.set_task_instance_id("roi_layer")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        layer_style={
+            "filled": False,
+            "stroked": True,
+            "get_line_color": [127, 201, 127, 255],
+            "get_line_width": 1,
+        },
+        legend={
+            "title": "ROI Boundary",
+            "values": [{"label": "ROI Boundary", "color": "rgba(127, 201, 127, 1)"}],
+        },
+        **roi_layer_params,
+    )
+    .mapvalues(argnames=["geodataframe"], argvalues=split_roi_groups)
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+combined_forest_map_layers_params = dict()
+
+# %%
+# call the task
+
+
+combined_forest_map_layers = (
+    groupbykey.set_task_instance_id("combined_forest_map_layers")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        iterables=[merged_forest_layers, roi_layer], **combined_forest_map_layers_params
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+forest_map_params = dict(
+    widget_id=...,
+)
+
+# %%
+# call the task
+
+
+forest_map = (
+    draw_map.set_task_instance_id("forest_map")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        title=None,
+        static=False,
+        max_zoom=20,
+        view_state=None,
+        legend_style=None,
+        **forest_map_params,
+    )
+    .mapvalues(
+        argnames=["tile_layers", "geo_layers"], argvalues=combined_forest_map_layers
+    )
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+persist_forest_map_params = dict(
+    filename=...,
+)
+
+# %%
+# call the task
+
+
+persist_forest_map = (
+    persist_text.set_task_instance_id("persist_forest_map")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+        filename_suffix="map",
+        text=forest_map,
+        **persist_forest_map_params,
+    )
+    .mapvalues(argnames=["text"], argvalues=forest_map)
+)
+
+
+# %% [markdown]
+# ##
 
 # %%
 # parameters
@@ -311,7 +668,7 @@ gamm_model = (
 
 
 # %% [markdown]
-# ## Generate Trend Predictions
+# ##
 
 # %%
 # parameters
@@ -339,7 +696,42 @@ trend_predictions = (
 
 
 # %% [markdown]
-# ## Create Forest Cover Trend Chart
+# ##
+
+# %%
+# parameters
+
+persist_trend_data_params = dict(
+    filename=...,
+)
+
+# %%
+# call the task
+
+
+persist_trend_data = (
+    persist_df_wrapper.set_task_instance_id("persist_trend_data")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            never,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+        sanitize=True,
+        filename_prefix="trend_predictions",
+        filetypes=["parquet"],
+        **persist_trend_data_params,
+    )
+    .mapvalues(argnames=["df"], argvalues=trend_predictions)
+)
+
+
+# %% [markdown]
+# ## Trend Chart
 
 # %%
 # parameters
@@ -364,17 +756,15 @@ forest_cover_chart = (
         unpack_depth=1,
     )
     .partial(
-        dataframe=trend_predictions,
         current_value_column="y",
         time_column="time",
-        current_value_title="Observed Survival Area",
+        current_value_title="Observed Trend",
         historic_min_column="ci_lower",
         historic_max_column="ci_upper",
         historic_mean_column="predicted",
-        historic_mean_title="GAM Mean",
-        historic_band_title="GAM 95% CI",
+        historic_mean_title="Trend Estimate",
+        historic_band_title="Trend Confidence",
         layout_style={
-            "title": "Forest survival area trend (GAM)",
             "xaxis": {"title": "Year"},
             "yaxis": {"title": "Survival Area (acres)"},
         },
@@ -388,7 +778,7 @@ forest_cover_chart = (
 
 
 # %% [markdown]
-# ## Persist Forest Cover Trend Chart as Text
+# ##
 
 # %%
 # parameters
@@ -423,7 +813,121 @@ persist_forest_cover = (
 
 
 # %% [markdown]
-# ## Create Forest Cover Trend Chart Widget
+# ##
+
+# %%
+# parameters
+
+map_widget_title_params = dict(
+    title=...,
+)
+
+# %%
+# call the task
+
+
+map_widget_title = (
+    set_title_var.set_task_instance_id("map_widget_title")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(**map_widget_title_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+chart_widget_title_params = dict(
+    title=...,
+)
+
+# %%
+# call the task
+
+
+chart_widget_title = (
+    set_title_var.set_task_instance_id("chart_widget_title")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(**chart_widget_title_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+forest_map_widget_params = dict()
+
+# %%
+# call the task
+
+
+forest_map_widget = (
+    create_map_widget_single_view.set_task_instance_id("forest_map_widget")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            never,
+        ],
+        unpack_depth=1,
+    )
+    .partial(title=map_widget_title, **forest_map_widget_params)
+    .map(argnames=["view", "data"], argvalues=persist_forest_map)
+)
+
+
+# %% [markdown]
+# ##
+
+# %%
+# parameters
+
+grouped_forest_map_params = dict()
+
+# %%
+# call the task
+
+
+grouped_forest_map = (
+    merge_widget_views.set_task_instance_id("grouped_forest_map")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            never,
+        ],
+        unpack_depth=1,
+    )
+    .partial(widgets=forest_map_widget, **grouped_forest_map_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ##
 
 # %%
 # parameters
@@ -444,13 +948,13 @@ forest_cover_widget = (
         ],
         unpack_depth=1,
     )
-    .partial(title="Forest Cover Trend Chart", **forest_cover_widget_params)
+    .partial(title=chart_widget_title, **forest_cover_widget_params)
     .map(argnames=["view", "data"], argvalues=persist_forest_cover)
 )
 
 
 # %% [markdown]
-# ## Merge Forest Cover Widget Views
+# ##
 
 # %%
 # parameters
@@ -477,7 +981,7 @@ grouped_forest_cover = (
 
 
 # %% [markdown]
-# ## Create Deforestation Dashboard
+# ##
 
 # %%
 # parameters
@@ -504,7 +1008,7 @@ gamm_dashboard = (
     .partial(
         details=workflow_details,
         time_range=time_range,
-        widgets=[grouped_forest_cover],
+        widgets=[grouped_forest_map, grouped_forest_cover],
         groupers=groupers,
         **gamm_dashboard_params,
     )

@@ -10,12 +10,12 @@ requirements:
     channel: https://repo.prefix.dev/ecoscope-workflows/
 
   - name: ecoscope-workflows-ext-custom
-    version: "0.0.37"
+    version: "0.0.41"
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
 
   - name: ecoscope-workflows-ext-gamm-trend-analysis
-    version: "0.0.0"
-    channel: https://repo.prefix.dev/ecoscope-workflows-custom/
+    version: "*"
+    channel: file:///tmp/ecoscope-workflows-custom/release/artifacts/ 
 
 rjsf-overrides:
   $defs:
@@ -38,6 +38,24 @@ rjsf-overrides:
         { "$ref": "#/$defs/LocalFileSpatialFeatures" },
         { "$ref": "#/$defs/RemoteFileSpatialFeatures" },
       ]
+
+    hansen_image.properties.var.default: "UMD/hansen/global_forest_change_2024_v1_12"
+    hansen_image.properties.var.description: "Hansen Global Forest Change dataset image name."
+
+    Forest Analysis.properties.tree_cover_threshold.properties.threshold.default: 60.0
+
+    Dashboard.properties.map_widget_title.properties.title.default: "Forest Change Map"
+    Dashboard.properties.map_widget_title.properties.title.description: "Title displayed on the forest change map."
+
+    Dashboard.properties.chart_widget_title.properties.title.default: "Forest Cover Trend Chart"
+    Dashboard.properties.chart_widget_title.properties.title.description: "Title displayed on the forest cover trend chart."
+
+    time_range.properties.since.default: "2000-01-01T00:00:00.000Z"
+    time_range.properties.since.description: >-
+      Start year of the analysis. The Hansen dataset baseline always starts from 2000.
+    time_range.properties.until.description: >-
+      End year of the analysis. Depends on the Hansen dataset selected
+      (e.g. UMD/hansen/global_forest_change_2024_v1_12 covers up to 2024).
 task-instance-defaults:
   skipif:
     conditions:
@@ -54,19 +72,16 @@ workflow:
     task: set_gee_connection
 
     # The time range is set based on the temporal coverage of the
-    # UMD/hansen/global_forest_change_2023_v1_11 dataset (2000–2023).
+    # UMD/hansen/global_forest_change_2024_v1_12 dataset (2000–2024).
   - name: Time Range
     id: time_range
     task: set_time_range
     partial:
-      time_format: "%d %b %Y %H:%M:%S %Z"
-      timezone:
-        label: UTC
-        tzCode: UTC
-        name: Universal Coordinated Time
-        utc: +00:00
-      since: "2000-01-01T00:00:00.000Z"
-      until: "2023-12-31T23:59:59.000Z"
+      time_format: "%Y"
+
+  - name: Hansen Dataset
+    id: hansen_image
+    task: set_string_var
 
   - name: Set Groupers
     id: groupers
@@ -76,99 +91,257 @@ workflow:
     id: roi
     task: load_spatial_features_group
 
-  - name: Split ROIs by Group
+  - name: ""
     id: split_roi_groups
     task: split_groups
     partial:
       df: ${{ workflow.roi.return }}
       groupers: ${{ workflow.groupers.return }}
 
-    # Analysis
-  - name: Extract Forest Cover Trends
-    id: forest_cover_trends
-    task: extract_forest_cover_trends
-    partial:
-      client: ${{ workflow.gee_project_name.return }}
-    mapvalues:
-      argnames: aoi
-      argvalues: ${{ workflow.split_roi_groups.return}}
+  - title: Forest Analysis
+    type: task-group
+    description: "" 
+    tasks:
+      - name: ""
+        id: tree_cover_threshold
+        task: set_tree_cover_threshold
 
-  - name: Fit GAMM Model
-    id: gamm_model
-    task: fit_gamm_model
+      - name: ""
+        id: forest_cover_trends
+        task: extract_forest_cover_trends
+        partial:
+          client: ${{ workflow.gee_project_name.return }}
+          time_range: ${{ workflow.time_range.return }}
+          image: ${{ workflow.hansen_image.return }}
+          tree_cover_threshold: ${{ workflow.tree_cover_threshold.return }}
+        mapvalues:
+          argnames: aoi
+          argvalues: ${{ workflow.split_roi_groups.return }}
+
+  - name: ""
+    id: persist_forest_cover_data
+    task: persist_df_wrapper
+    skipif:
+      conditions:
+        - never
     partial:
-      time_column: "year"
-      value_column: "survival_area"
-      alpha: null
-      lower_bound: null
-      upper_bound: null
-      optimize_alpha: true
+      root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+      sanitize: true
+      filename_prefix: forest_cover
+      filetypes:
+        - parquet
     mapvalues:
-      argnames: dataframe
+      argnames: df
       argvalues: ${{ workflow.forest_cover_trends.return }}
 
-  - name: Generate Trend Predictions
-    id: trend_predictions
-    task: predict_gamm_trends
+  - name: ""
+    id: forest_layers
+    task: create_forest_layers
     partial:
-      time_values: null
-      include_ci: true
+      client: ${{ workflow.gee_project_name.return }}
+      time_range: ${{ workflow.time_range.return }}
+      image: ${{ workflow.hansen_image.return }}
+      tree_cover_threshold: ${{ workflow.tree_cover_threshold.return }}
+      opacity: 1.0
     mapvalues:
-      argnames: model_params
-      argvalues: ${{ workflow.gamm_model.return }}
+      argnames: aoi
+      argvalues: ${{ workflow.split_roi_groups.return }}
 
-  - name: Create Forest Cover Trend Chart
-    id: forest_cover_chart
-    task: draw_historic_timeseries
+  - name: Base Maps
+    id: base_map_defs
+    task: set_base_maps_pydeck
+
+  - name: ""
+    id: merged_forest_layers
+    task: merge_tile_layers
     partial:
-      dataframe: ${{ workflow.trend_predictions.return }}
-      current_value_column: "y"
-      time_column: "time"
-      current_value_title: "Observed Survival Area"
-      historic_min_column: "ci_lower"
-      historic_max_column: "ci_upper"
-      historic_mean_column: "predicted"
-      historic_mean_title: "GAM Mean"
-      historic_band_title: "GAM 95% CI"
-      layout_style:
-        title: Forest survival area trend (GAM)
-        xaxis:
-          title: "Year"
-        yaxis:
-          title: "Survival Area (acres)"
-      upper_lower_band_style:
-        mode: lines
-        line:
-          color: green
-      historic_mean_style: null
-      current_value_style: null
+      base_layers: ${{ workflow.base_map_defs.return }}
     mapvalues:
-      argnames: dataframe
-      argvalues: ${{ workflow.trend_predictions.return }}
+      argnames: overlay
+      argvalues: ${{ workflow.forest_layers.return }}
 
-  - name: Persist Forest Cover Trend Chart as Text
-    id: persist_forest_cover
+  - name: ""
+    id: roi_layer
+    task: create_polygon_layer_pydeck
+    partial:
+      layer_style:
+        filled: false
+        stroked: true
+        get_line_color: [127, 201, 127, 255]
+        get_line_width: 1
+      legend:
+        title: ROI Boundary
+        values:
+          - label: ROI Boundary
+            color: rgba(127, 201, 127, 1)
+    mapvalues:
+      argnames: geodataframe
+      argvalues: ${{ workflow.split_roi_groups.return }}
+
+  - name: ""
+    id: combined_forest_map_layers
+    task: groupbykey
+    partial:
+      iterables:
+        - ${{ workflow.merged_forest_layers.return }}
+        - ${{ workflow.roi_layer.return }}
+
+  - name: ""
+    id: forest_map
+    task: draw_map
+    partial:
+      title: null
+      static: false
+      max_zoom: 20
+      view_state: null
+      legend_style: null
+    mapvalues:
+      argnames: [tile_layers, geo_layers]
+      argvalues: ${{ workflow.combined_forest_map_layers.return }}
+
+  - name: ""
+    id: persist_forest_map
     task: persist_text
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
-      text: ${{ workflow.forest_cover_chart.return }}
+      filename_suffix: map
+      text: ${{ workflow.forest_map.return }}
     mapvalues:
       argnames: text
-      argvalues: ${{ workflow.forest_cover_chart.return }}
+      argvalues: ${{ workflow.forest_map.return }}
 
-  - name: Create Forest Cover Trend Chart Widget
+  - title: Trend Analysis
+    type: task-group
+    description: >-
+      Configure the GAM trend fitting parameters.
+    tasks:
+      - name: ""
+        id: gamm_model
+        task: fit_gamm_model
+        partial:
+          time_column: "year"
+          value_column: "survival_area"
+          alpha: null
+          lower_bound: null
+          upper_bound: null
+          optimize_alpha: true
+          # metric: "AIC"
+          # degree_of_freedom: 10
+          # degree: 3
+          # family: "Gaussian"
+        mapvalues:
+          argnames: dataframe
+          argvalues: ${{ workflow.forest_cover_trends.return }}
+
+      - name: ""
+        id: trend_predictions
+        task: predict_gamm_trends
+        partial:
+          time_values: null
+          include_ci: true
+        mapvalues:
+          argnames: model_params
+          argvalues: ${{ workflow.gamm_model.return }}
+
+      - name: ""
+        id: persist_trend_data
+        task: persist_df_wrapper
+        skipif:
+          conditions:
+            - never
+        partial:
+          root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+          sanitize: true
+          filename_prefix: trend_predictions
+          filetypes:
+            - parquet
+        mapvalues:
+          argnames: df
+          argvalues: ${{ workflow.trend_predictions.return }}
+
+      - name: Trend Chart
+        id: forest_cover_chart
+        task: draw_historic_timeseries
+        partial:
+          current_value_column: "y"
+          time_column: "time"
+          current_value_title: "Observed Trend"
+          historic_min_column: "ci_lower"
+          historic_max_column: "ci_upper"
+          historic_mean_column: "predicted"
+          historic_mean_title: "Trend Estimate"
+          historic_band_title: "Trend Confidence"
+          layout_style:
+            xaxis:
+              title: "Year"
+            yaxis:
+              title: "Survival Area (acres)"
+          upper_lower_band_style:
+            mode: lines
+            line:
+              color: green
+          historic_mean_style: null
+          current_value_style: null
+        mapvalues:
+          argnames: dataframe
+          argvalues: ${{ workflow.trend_predictions.return }}
+
+      - name: ""
+        id: persist_forest_cover
+        task: persist_text
+        partial:
+          root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+          text: ${{ workflow.forest_cover_chart.return }}
+        mapvalues:
+          argnames: text
+          argvalues: ${{ workflow.forest_cover_chart.return }}
+
+  - title: Dashboard
+    type: task-group
+    description: Configure the dashboard output titles.
+    tasks:
+      - name: ""
+        id: map_widget_title
+        task: set_title_var
+
+      - name: ""
+        id: chart_widget_title
+        task: set_title_var
+
+  - name: ""
+    id: forest_map_widget
+    task: create_map_widget_single_view
+    skipif:
+      conditions:
+        - never
+    partial:
+      title: ${{ workflow.map_widget_title.return }}
+    map:
+      argnames: [view, data]
+      argvalues: ${{ workflow.persist_forest_map.return }}
+
+  - name: ""
+    id: grouped_forest_map
+    task: merge_widget_views
+    skipif:
+      conditions:
+        - never
+    partial:
+      widgets: ${{ workflow.forest_map_widget.return }}
+
+  - name: ""
     id: forest_cover_widget
     task: create_plot_widget_single_view
     skipif:
       conditions:
         - never
     partial:
-      title: "Forest Cover Trend Chart"
+      title: ${{ workflow.chart_widget_title.return }}
     map:
       argnames: [view, data]
       argvalues: ${{ workflow.persist_forest_cover.return }}
 
-  - name: Merge Forest Cover Widget Views
+  - name: ""
     id: grouped_forest_cover
     task: merge_widget_views
     skipif:
@@ -177,12 +350,13 @@ workflow:
     partial:
       widgets: ${{ workflow.forest_cover_widget.return }}
 
-  - name: Create Deforestation Dashboard
+  - name: ""
     id: gamm_dashboard
     task: gather_dashboard
     partial:
-      details: ${{ workflow.workflow_details.return}}
-      time_range: ${{ workflow.time_range.return}}
+      details: ${{ workflow.workflow_details.return }}
+      time_range: ${{ workflow.time_range.return }}
       widgets:
+        - ${{ workflow.grouped_forest_map.return }}
         - ${{ workflow.grouped_forest_cover.return }}
       groupers: ${{ workflow.groupers.return }}

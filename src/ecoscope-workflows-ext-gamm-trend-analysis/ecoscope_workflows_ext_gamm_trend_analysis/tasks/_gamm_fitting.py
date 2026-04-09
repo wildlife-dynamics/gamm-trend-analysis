@@ -6,7 +6,7 @@ from ecoscope_workflows_core.decorators import task
 from pydantic import Field
 from ecoscope.analysis.trend_analysis import GAMRegressor, optimize_gam
 from .__gamm_utils import prepare_time_series_data, extract_trend_results
-from ecoscope_workflows_core.annotations import AnyDataFrame
+from ecoscope_workflows_core.annotations import AnyDataFrame, AdvancedField
 from ecoscope_workflows_core.skip import SKIP_SENTINEL, SkipSentinel
 
 
@@ -17,21 +17,21 @@ def fit_gamm_model(
     value_column: Annotated[str, Field(description="Column name containing values to analyze")] = "value",
     alpha: Annotated[
         Optional[float],
-        Field(default=None, description="Smoothing parameter. If None, will be optimized."),
+        AdvancedField(default=None, description="Smoothing parameter. If None, will be optimized."),
     ] = None,
-    optimize_alpha: Annotated[bool, Field(default=True, description="Whether to optimize alpha parameter")] = True,
+    optimize_alpha: Annotated[bool, AdvancedField(default=True, description="Whether to optimize alpha parameter")] = True,
     metric: Annotated[
         Literal["AIC", "BIC", "Euclidean", "MSE", "R-Squared"],
-        Field(default="AIC", description="Metric for optimization"),
+        AdvancedField(default="AIC", description="Metric for optimization"),
     ] = "AIC",
-    degree_of_freedom: Annotated[int, Field(default=20, description="Degrees of freedom for spline basis")] = 20,
-    degree: Annotated[int, Field(default=3, description="Degree of B-spline basis")] = 3,
+    degree_of_freedom: Annotated[int, AdvancedField(default=10, description="Degrees of freedom for spline basis")] = 10,
+    degree: Annotated[int, AdvancedField(default=3, description="Degree of B-spline basis")] = 3,
     family: Annotated[
         Literal["Gaussian", "Poisson", "Binomial"],
-        Field(default="Gaussian", description="Distribution family for GLM"),
+        AdvancedField(default="Gaussian", description="Distribution family for GLM"),
     ] = "Gaussian",
-    lower_bound: Annotated[Optional[float], Field(default=None, description="Lower bound for spline knots")] = None,
-    upper_bound: Annotated[Optional[float], Field(default=None, description="Upper bound for spline knots")] = None,
+    lower_bound: Annotated[Optional[float], AdvancedField(default=None, description="Lower bound for spline knots")] = None,
+    upper_bound: Annotated[Optional[float], AdvancedField(default=None, description="Upper bound for spline knots")] = None,
 ) -> dict | SkipSentinel:
     """
     Fit a GAM model to time series data.
