@@ -11,8 +11,9 @@ time_range:
   until: "2024-12-31T23:59:59.000Z"
 roi:
   config:
-    url: "https://www.dropbox.com/s/nvdmidz1o2duyl3/AOIs.gpkg?dl=1"
-    name_column: "name"
+    #url: "https://www.dropbox.com/s/nvdmidz1o2duyl3/AOIs.gpkg?dl=1"
+    file_path: "/Users/rodeo/Downloads/gme-buffered2.parquet"
+    name_column: "Name"
 groupers:
   groupers:
     - index_name: "name"
@@ -21,4 +22,4 @@ tree_cover_threshold:
 map_widget_title:
   title: "Forest Change Map"
 chart_widget_title:
-  title: "Forest Cover Trend Chart"
+  title: "Forest Cover Time SeriesAnalysis"

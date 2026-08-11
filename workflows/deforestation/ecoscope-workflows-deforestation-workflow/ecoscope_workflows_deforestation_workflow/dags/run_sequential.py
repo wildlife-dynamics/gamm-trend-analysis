@@ -410,7 +410,7 @@ def main(params: Params):
         )
         .partial(
             time_column="year",
-            value_column="survival_area",
+            value_column="cumsum_loss_pct",
             alpha=None,
             lower_bound=None,
             upper_bound=None,
@@ -484,7 +484,7 @@ def main(params: Params):
             historic_band_title="Trend Confidence",
             layout_style={
                 "xaxis": {"title": "Year"},
-                "yaxis": {"title": "Survival Area (acres)"},
+                "yaxis": {"title": "Cumulative Forest Loss (% of Original)"},
             },
             upper_lower_band_style={"mode": "lines", "line": {"color": "green"}},
             historic_mean_style=None,

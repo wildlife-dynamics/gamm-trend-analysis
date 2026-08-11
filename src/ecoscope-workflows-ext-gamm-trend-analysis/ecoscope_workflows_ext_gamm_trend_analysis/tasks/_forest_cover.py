@@ -69,6 +69,7 @@ def extract_forest_cover_trends(
     - loss_area: Forest loss area in acres
     - cumsum_loss_area: Cumulative loss area in acres
     - survival_area: Remaining forest area in acres
+    - cumsum_loss_pct: Cumulative forest loss as a percentage of original cover
     """
     import ee
     import logging
@@ -117,7 +118,9 @@ def extract_forest_cover_trends(
 
     groups = loss_by_year.getInfo()["groups"]
     if not groups:
-        return pd.DataFrame(columns=["year", "loss_area", "cumsum_loss_area", "survival_area"])
+        return pd.DataFrame(
+            columns=["year", "loss_area", "cumsum_loss_area", "survival_area", "cumsum_loss_pct"]
+        )
 
     forest_survival = pd.DataFrame([x for x in groups])
     forest_survival.rename(columns={"group": "year", "sum": "loss_area"}, inplace=True)
@@ -128,6 +131,12 @@ def extract_forest_cover_trends(
     forest_survival = forest_survival.sort_values("year")
     forest_survival["cumsum_loss_area"] = forest_survival["loss_area"].cumsum()
     forest_survival["survival_area"] = forested_area - forest_survival["cumsum_loss_area"]
+    if forested_area > 0:
+        forest_survival["cumsum_loss_pct"] = (
+            forest_survival["cumsum_loss_area"] / forested_area
+        ) * 100
+    else:
+        forest_survival["cumsum_loss_pct"] = 0.0
 
     # Apply filters for final return
     if start_year:

@@ -220,7 +220,7 @@ workflow:
         task: fit_gamm_model
         partial:
           time_column: "year"
-          value_column: "survival_area"
+          value_column: "cumsum_loss_pct"
           alpha: null
           lower_bound: null
           upper_bound: null
@@ -275,7 +275,7 @@ workflow:
             xaxis:
               title: "Year"
             yaxis:
-              title: "Survival Area (acres)"
+              title: "Cumulative Forest Loss (% of Original)"
           upper_lower_band_style:
             mode: lines
             line:

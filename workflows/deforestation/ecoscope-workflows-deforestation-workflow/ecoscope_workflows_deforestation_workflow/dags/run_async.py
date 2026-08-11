@@ -508,7 +508,7 @@ def main(params: Params):
             .set_executor("lithops"),
             partial={
                 "time_column": "year",
-                "value_column": "survival_area",
+                "value_column": "cumsum_loss_pct",
                 "alpha": None,
                 "lower_bound": None,
                 "upper_bound": None,
@@ -599,7 +599,7 @@ def main(params: Params):
                         "title": "Year",
                     },
                     "yaxis": {
-                        "title": "Survival Area (acres)",
+                        "title": "Cumulative Forest Loss (% of Original)",
                     },
                 },
                 "upper_lower_band_style": {

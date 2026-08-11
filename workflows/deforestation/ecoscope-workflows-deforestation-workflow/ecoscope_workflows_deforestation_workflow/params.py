@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, confloat, constr
 
@@ -15,7 +15,7 @@ class WorkflowDetails(BaseModel):
         extra="forbid",
     )
     name: str = Field(..., title="Workflow Name")
-    description: Optional[str] = Field("", title="Workflow Description")
+    description: str | None = Field("", title="Workflow Description")
 
 
 class HansenImage(BaseModel):
@@ -29,7 +29,7 @@ class TreeCoverThreshold(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    threshold: Optional[confloat(ge=0.0, le=100.0)] = Field(
+    threshold: confloat(ge=0.0, le=100.0) | None = Field(
         60.0,
         description="Minimum tree cover percentage (0–100) to classify a pixel as forest.",
         title="Threshold",
@@ -40,10 +40,10 @@ class ForestCoverTrends(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    scale: Optional[int] = Field(
+    scale: int | None = Field(
         30, description="Pixel scale in meters for reduction", title="Scale"
     )
-    max_pixels: Optional[float] = Field(
+    max_pixels: float | None = Field(
         1000000000.0, description="Maximum pixels for reduction", title="Max Pixels"
     )
 
@@ -58,7 +58,7 @@ class BaseMaps(BaseModel):
     url: Literal["https://tile.openstreetmap.org/{z}/{x}/{y}.png"] = Field(
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png", title="Preset Layer URL"
     )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+    opacity: confloat(ge=0.0, le=1.0) | None = Field(
         1,
         description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
         title="Layer Opacity",
@@ -76,7 +76,7 @@ class BaseMaps1(BaseModel):
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
         title="Preset Layer URL",
     )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+    opacity: confloat(ge=0.0, le=1.0) | None = Field(
         1,
         description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
         title="Layer Opacity",
@@ -94,7 +94,7 @@ class BaseMaps2(BaseModel):
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         title="Preset Layer URL",
     )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+    opacity: confloat(ge=0.0, le=1.0) | None = Field(
         1,
         description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
         title="Layer Opacity",
@@ -112,7 +112,7 @@ class BaseMaps3(BaseModel):
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
         title="Preset Layer URL",
     )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+    opacity: confloat(ge=0.0, le=1.0) | None = Field(
         1,
         description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
         title="Layer Opacity",
@@ -130,7 +130,7 @@ class BaseMaps4(BaseModel):
         "https://tiles.arcgis.com/tiles/POUcpLYXNckpLjnY/arcgis/rest/services/landDx_basemap_tiles_mapservice/MapServer/tile/{z}/{y}/{x}",
         title="Preset Layer URL",
     )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+    opacity: confloat(ge=0.0, le=1.0) | None = Field(
         1,
         description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
         title="Layer Opacity",
@@ -148,7 +148,7 @@ class BaseMaps5(BaseModel):
         "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
         title="Preset Layer URL",
     )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+    opacity: confloat(ge=0.0, le=1.0) | None = Field(
         1,
         description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
         title="Layer Opacity",
@@ -156,26 +156,22 @@ class BaseMaps5(BaseModel):
 
 
 class BaseMaps6(BaseModel):
-    url: Optional[
-        constr(
-            pattern=r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}([-a-zA-Z0-9()@:%_\+.~#?&//=\{\}]*)"
-        )
-    ] = Field(
+    url: constr(pattern=r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}([-a-zA-Z0-9()@:%_\+.~#?&//=\{\}]*)") | None = Field(
         "https://example.tiles.com/{z}/{x}/{y}.png",
         description="The URL of a publicly accessible tiled raster service.",
         title="Custom Layer URL",
     )
-    opacity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+    opacity: confloat(ge=0.0, le=1.0) | None = Field(
         1,
         description="Set layer transparency from 1 (fully visible) to 0 (hidden).",
         title="Custom Layer Opacity",
     )
-    max_zoom: Optional[int] = Field(
+    max_zoom: int | None = Field(
         20,
         description="Set the maximum zoom level to fetch tiles for.",
         title="Custom Layer Max Zoom",
     )
-    min_zoom: Optional[int] = Field(
+    min_zoom: int | None = Field(
         0,
         description="Set the minimum zoom level to fetch tiles for.",
         title="Custom Layer Min Zoom",
@@ -186,19 +182,7 @@ class BaseMapDefs(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    base_maps: Optional[
-        List[
-            Union[
-                BaseMaps,
-                BaseMaps1,
-                BaseMaps2,
-                BaseMaps3,
-                BaseMaps4,
-                BaseMaps5,
-                BaseMaps6,
-            ]
-        ]
-    ] = Field(
+    base_maps: list[BaseMaps | BaseMaps1 | BaseMaps2 | BaseMaps3 | BaseMaps4 | BaseMaps5 | BaseMaps6] | None = Field(
         [
             {
                 "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
@@ -234,16 +218,16 @@ class GammModel(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    metric: Optional[Metric] = Field(
+    metric: Metric | None = Field(
         "AIC", description="Metric for optimization", title="Metric"
     )
-    degree_of_freedom: Optional[int] = Field(
+    degree_of_freedom: int | None = Field(
         10, description="Degrees of freedom for spline basis", title="Degree Of Freedom"
     )
-    degree: Optional[int] = Field(
+    degree: int | None = Field(
         3, description="Degree of B-spline basis", title="Degree"
     )
-    family: Optional[Family] = Field(
+    family: Family | None = Field(
         "Gaussian", description="Distribution family for GLM", title="Family"
     )
 
@@ -307,7 +291,7 @@ class LocalFileSpatialFeatures(BaseModel):
     name_column: str = Field(
         ..., description="Column to use as region name", title="Name Column"
     )
-    layer: Optional[str] = Field(
+    layer: str | None = Field(
         None,
         description="Layer name (only applicable to geopackage files)",
         title="Layer",
@@ -323,7 +307,7 @@ class RemoteFileSpatialFeatures(BaseModel):
     name_column: str = Field(
         ..., description="Column to use as region name", title="Name Column"
     )
-    layer: Optional[str] = Field(
+    layer: str | None = Field(
         None,
         description="Layer name (only applicable for geopackage files)",
         title="Layer",
@@ -345,14 +329,14 @@ class TimeRange(BaseModel):
     )
     since: datetime = Field(..., description="The start time", title="Since")
     until: datetime = Field(..., description="The end time", title="Until")
-    timezone: Optional[TimezoneInfo] = Field(None, title="Timezone")
+    timezone: TimezoneInfo | None = Field(None, title="Timezone")
 
 
 class Groupers(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    groupers: Optional[List[Union[ValueGrouper, TemporalGrouper, SpatialGrouper]]] = (
+    groupers: list[ValueGrouper | TemporalGrouper | SpatialGrouper] | None = (
         Field(
             None,
             description="            Specify how the data should be grouped to create the views for your dashboard.\n            This field is optional; if left blank, all the data will appear in a single view.\n            ",
@@ -365,32 +349,30 @@ class Roi(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    config: Union[
-        LocalFileSpatialFeatures, RemoteFileSpatialFeatures, EarthRangerSpatialFeatures
-    ] = Field(..., title="Spatial Feature Data Source")
+    config: LocalFileSpatialFeatures | RemoteFileSpatialFeatures | EarthRangerSpatialFeatures = Field(..., title="Spatial Feature Data Source")
 
 
 class Params(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    workflow_details: Optional[WorkflowDetails] = Field(
+    workflow_details: WorkflowDetails | None = Field(
         None,
         description="Add information that will help to differentiate this workflow from another.",
         title="Set Workflow Details",
     )
-    gee_project_name: Optional[GeeProjectName] = Field(
+    gee_project_name: GeeProjectName | None = Field(
         None, title="Connect to Earth Engine"
     )
-    time_range: Optional[TimeRange] = Field(
+    time_range: TimeRange | None = Field(
         None, description="Choose the period of time to analyze.", title="Time Range"
     )
-    hansen_image: Optional[HansenImage] = Field(None, title="Hansen Dataset")
-    groupers: Optional[Groupers] = Field(None, title="Set Groupers")
-    roi: Optional[Roi] = Field(None, title="Load Region of Interest")
-    tree_cover_threshold: Optional[TreeCoverThreshold] = Field(None, title="")
-    forest_cover_trends: Optional[ForestCoverTrends] = Field(None, title="")
-    base_map_defs: Optional[BaseMapDefs] = Field(None, title="Base Maps")
-    gamm_model: Optional[GammModel] = Field(None, title="")
-    map_widget_title: Optional[MapWidgetTitle] = Field(None, title="")
-    chart_widget_title: Optional[ChartWidgetTitle] = Field(None, title="")
+    hansen_image: HansenImage | None = Field(None, title="Hansen Dataset")
+    groupers: Groupers | None = Field(None, title="Set Groupers")
+    roi: Roi | None = Field(None, title="Load Region of Interest")
+    tree_cover_threshold: TreeCoverThreshold | None = Field(None, title="")
+    forest_cover_trends: ForestCoverTrends | None = Field(None, title="")
+    base_map_defs: BaseMapDefs | None = Field(None, title="Base Maps")
+    gamm_model: GammModel | None = Field(None, title="")
+    map_widget_title: MapWidgetTitle | None = Field(None, title="")
+    chart_widget_title: ChartWidgetTitle | None = Field(None, title="")

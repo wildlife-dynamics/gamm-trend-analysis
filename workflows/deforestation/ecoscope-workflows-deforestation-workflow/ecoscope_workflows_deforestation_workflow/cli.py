@@ -7,7 +7,6 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from io import TextIOWrapper
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 import click
@@ -78,11 +77,11 @@ def cli() -> None:
     ),
 )
 def run(
-    config_file: Optional[TextIOWrapper],
-    config_json: Optional[str],
+    config_file: TextIOWrapper | None,
+    config_json: str | None,
     execution_mode: str,
     mock_io: bool,
-    otel_exporter: Optional[str],
+    otel_exporter: str | None,
     otel_console_exporter_dst: str,
 ) -> None:
     import obstore
